@@ -20,6 +20,13 @@ device.
 - **Test Results** — record lab results with units and the normal range from
   your lab report. Anything outside the range is automatically flagged
   "Above range" or "Below range".
+- **Two medical "lives"** — results, appointments, and supplements can be
+  tagged **Crohn's** or **General Health**. Filter pills on the Test Results
+  tab switch between them in one click, and Crohn's items carry a badge
+  everywhere, including the dashboard.
+- **Per-test trends** — the "By test" view groups results by test (RBC,
+  CRP, Infliximab level, Vitamin D, …), each with its full history and a
+  trend chart drawn against the test's normal range.
 - **Import from a lab report** — choose your lab report PDF (or paste its
   text) and the app detects test names, values, units, and normal ranges,
   shows you an editable preview, and adds everything in one click. The PDF is
@@ -59,7 +66,6 @@ Some things you might want to add as you learn more:
 - Editing entries in place (currently: delete and re-add)
 - Reminders/notifications for supplements and appointments
 - Attaching files (e.g. photos of lab reports) to results
-- Trend charts for repeated test results (e.g. Vitamin D over time)
 - Syncing between devices via a small backend
 
 ## Disclaimer

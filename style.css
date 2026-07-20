@@ -26,6 +26,9 @@
   --soon-bg: #eaf2fb;
   --soon-text: #2471a3;
   --chart-line2: #e67e22;
+  --cat-bg: #f3ecfb;
+  --cat-text: #7d3c98;
+  --on-accent: #ffffff;
   --radius: 10px;
 }
 
@@ -47,6 +50,9 @@
     --soon-bg: #16303f;
     --soon-text: #6db3e8;
     --chart-line2: #f0a35c;
+    --cat-bg: #2e2340;
+    --cat-text: #c39bd3;
+    --on-accent: #0c1417;
   }
 }
 
@@ -67,6 +73,9 @@
   --soon-bg: #eaf2fb;
   --soon-text: #2471a3;
   --chart-line2: #e67e22;
+  --cat-bg: #f3ecfb;
+  --cat-text: #7d3c98;
+  --on-accent: #ffffff;
 }
 
 :root[data-theme="dark"] {
@@ -86,6 +95,9 @@
   --soon-bg: #16303f;
   --soon-text: #6db3e8;
   --chart-line2: #f0a35c;
+  --cat-bg: #2e2340;
+  --cat-text: #c39bd3;
+  --on-accent: #0c1417;
 }
 
 body {
@@ -330,6 +342,97 @@ input:focus, select:focus, textarea:focus {
 .badge-soon {
   background: var(--soon-bg);
   color: var(--soon-text);
+}
+
+.badge-cat {
+  background: var(--cat-bg);
+  color: var(--cat-text);
+}
+
+/* ============ Filter pills & view toggle ============ */
+.pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.pill {
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pill:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pill.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.pill-spacer {
+  flex: 1;
+}
+
+/* ============ By-test groups ============ */
+.test-group {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.test-group summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.test-group summary::-webkit-details-marker {
+  display: none;
+}
+
+.test-group summary::after {
+  content: "▾";
+  color: var(--muted);
+}
+
+.test-group[open] summary {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.test-group[open] summary::after {
+  content: "▴";
+}
+
+.test-summary-value {
+  font-weight: 600;
+  margin-left: auto;
+}
+
+.spark-wrap {
+  margin: 0.5rem 0;
+}
+
+.spark-wrap svg {
+  display: block;
+  max-width: 100%;
 }
 
 /* ============ Checklist ============ */

@@ -16,6 +16,17 @@ const METRIC_INFO = {
   steps:          { label: "Steps",          unit: "steps" },
 };
 
+// The two "sides" of the user's medical life. Everything defaults to
+// general; results, appointments and supplements can be tagged as Crohn's.
+const CATEGORY_INFO = {
+  general: { label: "General Health" },
+  crohns:  { label: "Crohn’s" },
+};
+
+function catBadge(category) {
+  return category === "crohns" ? ' <span class="badge badge-cat">Crohn’s</span>' : "";
+}
+
 /* ---------------- Storage ---------------- */
 /* Some embedded browsers block localStorage entirely; fall back to
    in-memory storage and warn so Backup/Restore can bridge sessions. */
@@ -48,11 +59,21 @@ function emptyData() {
   };
 }
 
+// Entries saved before categories existed (or edited by hand) get "general".
+function normalizeData(d) {
+  for (const list of [d.results, d.appointments, d.supplements]) {
+    for (const item of list) {
+      item.category = item.category === "crohns" ? "crohns" : "general";
+    }
+  }
+  return d;
+}
+
 function loadData() {
   try {
     const raw = storeGet();
     if (!raw) return emptyData();
-    return Object.assign(emptyData(), JSON.parse(raw));
+    return normalizeData(Object.assign(emptyData(), JSON.parse(raw)));
   } catch (e) {
     console.error("Could not read saved data:", e);
     return emptyData();
@@ -258,6 +279,7 @@ supplementForm.addEventListener("submit", (e) => {
     name: document.getElementById("supp-name").value.trim(),
     dose: document.getElementById("supp-dose").value.trim(),
     time: document.getElementById("supp-time").value,
+    category: document.getElementById("supp-category").value,
     notes: document.getElementById("supp-notes").value.trim(),
   });
   saveData();
@@ -278,7 +300,7 @@ function renderSupplementList() {
   el.innerHTML = data.supplements.map((s) => `
     <div class="item-row">
       <div class="item-main">
-        <div class="item-title">${escapeHtml(s.name)}</div>
+        <div class="item-title">${escapeHtml(s.name)}${catBadge(s.category)}</div>
         <div class="item-sub">${supplementSubtitle(s)}</div>
       </div>
       <button class="btn-delete" data-delete-supplement="${s.id}">Delete</button>
@@ -330,6 +352,7 @@ appointmentForm.addEventListener("submit", (e) => {
     date: document.getElementById("appt-date").value,
     time: document.getElementById("appt-time").value,
     location: document.getElementById("appt-location").value.trim(),
+    category: document.getElementById("appt-category").value,
     notes: document.getElementById("appt-notes").value.trim(),
   });
   saveData();
@@ -353,7 +376,7 @@ function appointmentRow(a, showSoonBadge) {
   return `
     <div class="item-row">
       <div class="item-main">
-        <div class="item-title">${escapeHtml(a.doctor)}${soon}</div>
+        <div class="item-title">${escapeHtml(a.doctor)}${catBadge(a.category)}${soon}</div>
         <div class="item-sub">${sub}</div>
       </div>
       <button class="btn-delete" data-delete-appointment="${a.id}">Delete</button>
@@ -395,6 +418,7 @@ resultForm.addEventListener("submit", (e) => {
     unit: document.getElementById("result-unit").value.trim(),
     low: lowRaw === "" ? null : parseFloat(lowRaw),
     high: highRaw === "" ? null : parseFloat(highRaw),
+    category: document.getElementById("result-category").value,
     notes: document.getElementById("result-notes").value.trim(),
   });
   saveData();
@@ -419,16 +443,16 @@ function resultRange(r) {
   return `≤ ${r.high}`;
 }
 
-function renderResults() {
-  const el = document.getElementById("result-list");
-  const sorted = [...data.results].sort(
+// Which slice of results is being viewed, and how. Not persisted — the
+// tab always opens on "all results, by date".
+let resultFilter = "all";
+let resultView = "date";
+
+function resultsDateTable(list) {
+  const sorted = [...list].sort(
     (a, b) => b.date.localeCompare(a.date) || a.name.localeCompare(b.name)
   );
-  if (sorted.length === 0) {
-    el.innerHTML = '<p class="empty">No test results yet — add one above.</p>';
-    return;
-  }
-  el.innerHTML = `
+  return `
     <div class="table-wrap">
       <table class="results-table">
         <thead>
@@ -438,7 +462,7 @@ function renderResults() {
           ${sorted.map((r) => `
             <tr>
               <td>${escapeHtml(r.date)}</td>
-              <td>${escapeHtml(r.name)}${r.notes ? `<div class="item-sub">${escapeHtml(r.notes)}</div>` : ""}</td>
+              <td>${escapeHtml(r.name)}${catBadge(r.category)}${r.notes ? `<div class="item-sub">${escapeHtml(r.notes)}</div>` : ""}</td>
               <td>${escapeHtml(String(r.value))} ${escapeHtml(r.unit)}</td>
               <td>${escapeHtml(resultRange(r))}</td>
               <td>${resultStatus(r)}</td>
@@ -447,6 +471,114 @@ function renderResults() {
         </tbody>
       </table>
     </div>`;
+}
+
+// Small trend chart for one test's history. The latest entry's normal
+// range is drawn as a shaded band behind the line.
+function resultSparkline(entries) {
+  const pts = entries.filter((e) => typeof e.value === "number" && !Number.isNaN(e.value));
+  if (pts.length < 2) {
+    return '<p class="muted">Add this test on more dates to see its trend.</p>';
+  }
+  const W = 300, H = 70, pad = 8;
+  const latest = pts[pts.length - 1];
+  const vals = pts.map((p) => p.value);
+  let min = Math.min(...vals);
+  let max = Math.max(...vals);
+  if (latest.low != null) min = Math.min(min, latest.low);
+  if (latest.high != null) max = Math.max(max, latest.high);
+  if (min === max) { min -= 1; max += 1; }
+  const span = max - min;
+  min -= span * 0.12;
+  max += span * 0.12;
+  const x = (i) => pad + (i / (pts.length - 1)) * (W - 2 * pad);
+  const y = (v) => H - pad - ((v - min) / (max - min)) * (H - 2 * pad);
+
+  const hasBand = latest.low != null || latest.high != null;
+  const bandTop = y(latest.high != null ? latest.high : max);
+  const bandBottom = y(latest.low != null ? latest.low : min);
+  const band = hasBand
+    ? `<rect x="0" y="${bandTop.toFixed(1)}" width="${W}" height="${(bandBottom - bandTop).toFixed(1)}" fill="var(--ok-bg)"/>`
+    : "";
+
+  const path = pts.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ");
+  const dots = pts.map((p, i) =>
+    `<circle cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="${i === pts.length - 1 ? 4 : 2.5}" fill="var(--accent)">
+       <title>${formatDate(p.date)}: ${escapeHtml(String(p.value))} ${escapeHtml(p.unit)}</title>
+     </circle>`
+  ).join("");
+
+  return `
+    <div class="spark-wrap">
+      <svg viewBox="0 0 ${W} ${H}" width="${W}" role="img" aria-label="Trend for this test">
+        ${band}
+        <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2"/>
+        ${dots}
+      </svg>
+      <p class="muted">Trend over ${pts.length} results, oldest to newest${hasBand ? " — shaded area is the normal range" : ""}. Hover a dot for details.</p>
+    </div>`;
+}
+
+function resultsByTest(list) {
+  const groups = new Map();
+  for (const r of list) {
+    const key = r.name.trim().toLowerCase();
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  }
+  return [...groups.keys()].sort().map((key) => {
+    const entries = groups.get(key).slice().sort((a, b) => a.date.localeCompare(b.date));
+    const latest = entries[entries.length - 1];
+    return `
+      <details class="test-group">
+        <summary>
+          <span>
+            <span class="item-title">${escapeHtml(latest.name)}</span>${catBadge(latest.category)}
+            <span class="item-sub"> · ${entries.length} result${entries.length === 1 ? "" : "s"}, latest ${formatDate(latest.date)}</span>
+          </span>
+          <span class="test-summary-value">${escapeHtml(String(latest.value))} ${escapeHtml(latest.unit)} ${resultStatus(latest)}</span>
+        </summary>
+        ${resultSparkline(entries)}
+        ${entries.slice().reverse().map((r) => `
+          <div class="item-row">
+            <div class="item-main">
+              <div class="item-title">${escapeHtml(String(r.value))} ${escapeHtml(r.unit)} ${resultStatus(r)}</div>
+              <div class="item-sub">${formatDate(r.date)} · Normal: ${escapeHtml(resultRange(r))}${r.notes ? " · " + escapeHtml(r.notes) : ""}</div>
+            </div>
+            <button class="btn-delete" data-delete-result="${r.id}">Delete</button>
+          </div>`).join("")}
+      </details>`;
+  }).join("");
+}
+
+function renderResults() {
+  const el = document.getElementById("result-list");
+  if (data.results.length === 0) {
+    el.innerHTML = '<p class="empty">No test results yet — add one above.</p>';
+    return;
+  }
+  const counts = { all: data.results.length, crohns: 0, general: 0 };
+  for (const r of data.results) counts[r.category === "crohns" ? "crohns" : "general"]++;
+  const filtered = resultFilter === "all"
+    ? data.results
+    : data.results.filter((r) => r.category === resultFilter);
+
+  const pills = `
+    <div class="pill-row">
+      ${["all", "crohns", "general"].map((f) => `
+        <button type="button" class="pill ${resultFilter === f ? "active" : ""}" data-result-filter="${f}">
+          ${f === "all" ? "All" : CATEGORY_INFO[f].label} (${counts[f]})
+        </button>`).join("")}
+      <span class="pill-spacer"></span>
+      <button type="button" class="pill ${resultView === "date" ? "active" : ""}" data-result-view="date">By date</button>
+      <button type="button" class="pill ${resultView === "test" ? "active" : ""}" data-result-view="test">By test</button>
+    </div>`;
+
+  const content = filtered.length === 0
+    ? `<p class="empty">No ${resultFilter === "crohns" ? "Crohn’s" : "General Health"} results yet.</p>`
+    : resultView === "date" ? resultsDateTable(filtered) : resultsByTest(filtered);
+
+  el.innerHTML = pills + content;
 }
 
 /* =========================================================
@@ -570,12 +702,19 @@ function renderImportPreview(candidates) {
       <label>Date of these results
         <input type="date" id="import-date" value="${todayStr()}">
       </label>
+      <label>Category
+        <select id="import-category">
+          <option value="general">General Health</option>
+          <option value="crohns">Crohn’s</option>
+        </select>
+      </label>
       <button type="button" id="import-add-btn" class="btn btn-primary">Add selected results</button>
       <button type="button" id="import-cancel-btn" class="btn btn-outline">Cancel</button>
     </div>`;
 
   document.getElementById("import-add-btn").addEventListener("click", () => {
     const date = document.getElementById("import-date").value || todayStr();
+    const category = document.getElementById("import-category").value;
     let added = 0;
     importPreview.querySelectorAll(".import-check").forEach((box) => {
       if (!box.checked) return;
@@ -594,6 +733,7 @@ function renderImportPreview(candidates) {
         unit: get("import-unit").trim(),
         low: lowRaw === "" ? null : parseFloat(lowRaw),
         high: highRaw === "" ? null : parseFloat(highRaw),
+        category,
         notes: "",
       });
       added++;
@@ -693,7 +833,7 @@ function renderDashboard() {
     recent.length ? recent.map((r) => `
       <div class="item-row">
         <div class="item-main">
-          <div class="item-title">${escapeHtml(r.name)}: ${escapeHtml(String(r.value))} ${escapeHtml(r.unit)} ${resultStatus(r)}</div>
+          <div class="item-title">${escapeHtml(r.name)}: ${escapeHtml(String(r.value))} ${escapeHtml(r.unit)} ${resultStatus(r)}${catBadge(r.category)}</div>
           <div class="item-sub">${formatDate(r.date)}</div>
         </div>
       </div>`).join("") : '<p class="empty">No results yet. Add them in the Test Results tab.</p>';
@@ -728,6 +868,15 @@ document.body.addEventListener("change", (e) => {
   }
 });
 
+// Category filter and view-mode pills on the Test Results tab.
+document.body.addEventListener("click", (e) => {
+  const pill = e.target.closest("[data-result-filter], [data-result-view]");
+  if (!pill) return;
+  if (pill.dataset.resultFilter) resultFilter = pill.dataset.resultFilter;
+  if (pill.dataset.resultView) resultView = pill.dataset.resultView;
+  renderResults();
+});
+
 /* =========================================================
    BACKUP / RESTORE
    ========================================================= */
@@ -752,7 +901,7 @@ document.getElementById("import-input").addEventListener("change", (e) => {
         throw new Error("Not a valid backup file");
       }
       if (!confirm("Restoring will replace ALL current data with the backup. Continue?")) return;
-      data = Object.assign(emptyData(), imported);
+      data = normalizeData(Object.assign(emptyData(), imported));
       saveData();
       renderAll();
       alert("Backup restored successfully.");
