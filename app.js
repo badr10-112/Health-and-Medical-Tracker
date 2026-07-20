@@ -27,6 +27,16 @@ function catBadge(category) {
   return category === "crohns" ? ' <span class="badge badge-cat">Crohn’s</span>' : "";
 }
 
+// Blood counts, inflammation markers, and IBD medication levels are
+// suggested as Crohn's; everything else (vitamins, minerals, hormones, …)
+// defaults to General Health. Suggestions only — the user can always
+// change the category before saving.
+const CROHNS_TEST_HINTS = /\b(crp|c[- ]?reactive|esr|sedimentation|calprotectin|f(?:a|ae)?ecal|lactoferrin|infliximab|adalimumab|ustekinumab|vedolizumab|risankizumab|azathioprine|mercaptopurine|thiopurine|6[- ]?tgn?|methotrexate|rbc|red blood|wbc|white blood|h(?:a|ae)?emoglobin|h(?:a|ae)?ematocrit|platelets?|mcv|mchc?|rdw|neutrophils?|lymphocytes?|monocytes?|eosinophils?|basophils?|albumin)\b/i;
+
+function suggestCategory(testName) {
+  return CROHNS_TEST_HINTS.test(testName) ? "crohns" : "general";
+}
+
 /* ---------------- Storage ---------------- */
 /* Some embedded browsers block localStorage entirely; fall back to
    in-memory storage and warn so Backup/Restore can bridge sessions. */
@@ -447,6 +457,7 @@ function resultRange(r) {
 // tab always opens on "all results, by date".
 let resultFilter = "all";
 let resultView = "date";
+let resultChartMode = "trend";
 
 function resultsDateTable(list) {
   const sorted = [...list].sort(
@@ -519,6 +530,68 @@ function resultSparkline(entries) {
     </div>`;
 }
 
+function monthLabel(yyyymm) {
+  const [y, m] = yyyymm.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: "short", year: "2-digit" });
+}
+
+// Bar chart of one test aggregated per month or per year. Buckets with
+// several results show the average. Bars start at zero; the latest
+// entry's normal range is shaded behind them.
+function resultBarChart(entries, mode) {
+  const pts = entries.filter((e) => typeof e.value === "number" && !Number.isNaN(e.value));
+  if (pts.length === 0) return "";
+  const buckets = new Map();
+  for (const p of pts) {
+    const key = mode === "yearly" ? p.date.slice(0, 4) : p.date.slice(0, 7);
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(p.value);
+  }
+  const keys = [...buckets.keys()].sort();
+  const avgs = keys.map((k) => buckets.get(k).reduce((a, b) => a + b, 0) / buckets.get(k).length);
+  const latest = pts[pts.length - 1];
+  const hasBand = latest.low != null || latest.high != null;
+
+  let top = Math.max(...avgs);
+  if (latest.high != null) top = Math.max(top, latest.high);
+  if (top <= 0) top = 1;
+  top *= 1.18;
+
+  const barW = 44, gap = 20;
+  const W = Math.max(300, keys.length * (barW + gap) + gap);
+  const H = 160, padT = 14, padB = 24;
+  const innerH = H - padT - padB;
+  const y = (v) => padT + innerH - (Math.max(v, 0) / top) * innerH;
+
+  const band = hasBand
+    ? `<rect x="0" y="${y(latest.high != null ? latest.high : top).toFixed(1)}" width="${W}" height="${(y(latest.low != null ? latest.low : 0) - y(latest.high != null ? latest.high : top)).toFixed(1)}" fill="var(--ok-bg)"/>`
+    : "";
+
+  const bars = keys.map((k, i) => {
+    const x0 = gap + i * (barW + gap);
+    const v = avgs[i];
+    const shown = v >= 100 ? Math.round(v) : Math.round(v * 10) / 10;
+    const keyLabel = mode === "yearly" ? k : monthLabel(k);
+    const n = buckets.get(k).length;
+    return `
+      <rect x="${x0}" y="${y(v).toFixed(1)}" width="${barW}" height="${(padT + innerH - y(v)).toFixed(1)}" rx="3" fill="var(--accent)">
+        <title>${keyLabel}: ${shown}${n > 1 ? ` (average of ${n} results)` : ""}</title>
+      </rect>
+      <text x="${x0 + barW / 2}" y="${(y(v) - 4).toFixed(1)}" text-anchor="middle" font-size="10" fill="var(--muted)">${shown}</text>
+      <text x="${x0 + barW / 2}" y="${H - 8}" text-anchor="middle" font-size="10" fill="var(--muted)">${keyLabel}</text>`;
+  }).join("");
+
+  const hasAverages = keys.some((k) => buckets.get(k).length > 1);
+  return `
+    <div class="spark-wrap">
+      <svg viewBox="0 0 ${W} ${H}" width="${W}" role="img" aria-label="${mode} bar chart for this test">
+        ${band}
+        ${bars}
+      </svg>
+      <p class="muted">${mode === "yearly" ? "Yearly" : "Monthly"} ${hasAverages ? "averages" : "values"}${hasBand ? " — shaded area is the normal range" : ""}. Hover a bar for details.</p>
+    </div>`;
+}
+
 function resultsByTest(list) {
   const groups = new Map();
   for (const r of list) {
@@ -538,7 +611,7 @@ function resultsByTest(list) {
           </span>
           <span class="test-summary-value">${escapeHtml(String(latest.value))} ${escapeHtml(latest.unit)} ${resultStatus(latest)}</span>
         </summary>
-        ${resultSparkline(entries)}
+        ${resultChartMode === "trend" ? resultSparkline(entries) : resultBarChart(entries, resultChartMode)}
         ${entries.slice().reverse().map((r) => `
           <div class="item-row">
             <div class="item-main">
@@ -574,11 +647,26 @@ function renderResults() {
       <button type="button" class="pill ${resultView === "test" ? "active" : ""}" data-result-view="test">By test</button>
     </div>`;
 
+  const chartPills = resultView === "test" ? `
+    <div class="pill-row">
+      <span class="item-sub">Chart:</span>
+      <button type="button" class="pill ${resultChartMode === "trend" ? "active" : ""}" data-result-chart="trend">Timeline</button>
+      <button type="button" class="pill ${resultChartMode === "monthly" ? "active" : ""}" data-result-chart="monthly">Monthly bars</button>
+      <button type="button" class="pill ${resultChartMode === "yearly" ? "active" : ""}" data-result-chart="yearly">Yearly bars</button>
+    </div>` : "";
+
   const content = filtered.length === 0
     ? `<p class="empty">No ${resultFilter === "crohns" ? "Crohn’s" : "General Health"} results yet.</p>`
     : resultView === "date" ? resultsDateTable(filtered) : resultsByTest(filtered);
 
-  el.innerHTML = pills + content;
+  const deleteShown = filtered.length > 0 ? `
+    <p class="delete-shown-row">
+      <button type="button" class="btn-delete" data-delete-shown="1">
+        🗑 Delete all ${filtered.length} result${filtered.length === 1 ? "" : "s"} shown${resultFilter === "all" ? "" : ` (${CATEGORY_INFO[resultFilter].label})`}
+      </button>
+    </p>` : "";
+
+  el.innerHTML = pills + chartPills + content + deleteShown;
 }
 
 /* =========================================================
@@ -679,14 +767,16 @@ function renderImportPreview(candidates) {
   }
   showImportStatus("");
   importPreview.innerHTML = `
-    <p class="muted">Found ${candidates.length} possible result${candidates.length === 1 ? "" : "s"}. Untick anything that isn't a real result, correct any values, then add them.</p>
+    <p class="muted">Found ${candidates.length} possible result${candidates.length === 1 ? "" : "s"}. Untick anything that isn't a real result, correct any values, and check the suggested categories, then add them.</p>
     <div class="table-wrap">
       <table class="results-table import-table">
         <thead>
-          <tr><th></th><th>Test</th><th>Value</th><th>Unit</th><th>Range low</th><th>Range high</th></tr>
+          <tr><th></th><th>Test</th><th>Value</th><th>Unit</th><th>Range low</th><th>Range high</th><th>Category</th></tr>
         </thead>
         <tbody>
-          ${candidates.map((c, i) => `
+          ${candidates.map((c, i) => {
+            const cat = suggestCategory(c.name);
+            return `
             <tr>
               <td><input type="checkbox" class="import-check" data-idx="${i}" checked></td>
               <td><input type="text" class="import-name" data-idx="${i}" value="${escapeHtml(c.name)}"></td>
@@ -694,7 +784,14 @@ function renderImportPreview(candidates) {
               <td><input type="text" class="import-unit" data-idx="${i}" value="${escapeHtml(c.unit)}"></td>
               <td><input type="number" step="any" class="import-low" data-idx="${i}" value="${c.low ?? ""}"></td>
               <td><input type="number" step="any" class="import-high" data-idx="${i}" value="${c.high ?? ""}"></td>
-            </tr>`).join("")}
+              <td>
+                <select class="import-cat" data-idx="${i}">
+                  <option value="general" ${cat === "general" ? "selected" : ""}>General</option>
+                  <option value="crohns" ${cat === "crohns" ? "selected" : ""}>Crohn’s</option>
+                </select>
+              </td>
+            </tr>`;
+          }).join("")}
         </tbody>
       </table>
     </div>
@@ -702,19 +799,12 @@ function renderImportPreview(candidates) {
       <label>Date of these results
         <input type="date" id="import-date" value="${todayStr()}">
       </label>
-      <label>Category
-        <select id="import-category">
-          <option value="general">General Health</option>
-          <option value="crohns">Crohn’s</option>
-        </select>
-      </label>
       <button type="button" id="import-add-btn" class="btn btn-primary">Add selected results</button>
       <button type="button" id="import-cancel-btn" class="btn btn-outline">Cancel</button>
     </div>`;
 
   document.getElementById("import-add-btn").addEventListener("click", () => {
     const date = document.getElementById("import-date").value || todayStr();
-    const category = document.getElementById("import-category").value;
     let added = 0;
     importPreview.querySelectorAll(".import-check").forEach((box) => {
       if (!box.checked) return;
@@ -733,7 +823,7 @@ function renderImportPreview(candidates) {
         unit: get("import-unit").trim(),
         low: lowRaw === "" ? null : parseFloat(lowRaw),
         high: highRaw === "" ? null : parseFloat(highRaw),
-        category,
+        category: get("import-cat"),
         notes: "",
       });
       added++;
@@ -855,6 +945,15 @@ document.body.addEventListener("click", (e) => {
     data.appointments = data.appointments.filter((a) => a.id !== t.dataset.deleteAppointment);
   } else if (t.dataset.deleteResult && confirmDelete("test result")) {
     data.results = data.results.filter((r) => r.id !== t.dataset.deleteResult);
+  } else if (t.dataset.deleteShown) {
+    const shown = resultFilter === "all"
+      ? data.results
+      : data.results.filter((r) => r.category === resultFilter);
+    const label = resultFilter === "all" ? "" : ` ${CATEGORY_INFO[resultFilter].label}`;
+    if (!confirm(`Delete ALL ${shown.length}${label} test results currently shown? This cannot be undone.`)) return;
+    data.results = resultFilter === "all"
+      ? []
+      : data.results.filter((r) => r.category !== resultFilter);
   } else {
     return;
   }
@@ -868,13 +967,20 @@ document.body.addEventListener("change", (e) => {
   }
 });
 
-// Category filter and view-mode pills on the Test Results tab.
+// Category filter, view-mode, and chart-mode pills on the Test Results tab.
 document.body.addEventListener("click", (e) => {
-  const pill = e.target.closest("[data-result-filter], [data-result-view]");
+  const pill = e.target.closest("[data-result-filter], [data-result-view], [data-result-chart]");
   if (!pill) return;
   if (pill.dataset.resultFilter) resultFilter = pill.dataset.resultFilter;
   if (pill.dataset.resultView) resultView = pill.dataset.resultView;
+  if (pill.dataset.resultChart) resultChartMode = pill.dataset.resultChart;
   renderResults();
+});
+
+// Suggest a category as soon as a test name is typed in the manual form;
+// the user can still change it before saving.
+document.getElementById("result-name").addEventListener("input", (e) => {
+  document.getElementById("result-category").value = suggestCategory(e.target.value);
 });
 
 /* =========================================================
