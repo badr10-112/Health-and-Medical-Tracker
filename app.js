@@ -79,6 +79,24 @@ function normalizeData(d) {
   return d;
 }
 
+// Add another dataset's entries to the current one. Entries with an id
+// we already have are skipped, so merging the same file twice is safe.
+function mergeData(incoming) {
+  const addNew = (target, source) => {
+    const ids = new Set(target.map((x) => x.id));
+    for (const item of source) {
+      if (!ids.has(item.id)) target.push(item);
+    }
+  };
+  addNew(data.metrics, incoming.metrics);
+  addNew(data.results, incoming.results);
+  addNew(data.appointments, incoming.appointments);
+  addNew(data.supplements, incoming.supplements);
+  for (const [day, ids] of Object.entries(incoming.supplementLog)) {
+    data.supplementLog[day] = [...new Set([...(data.supplementLog[day] || []), ...ids])];
+  }
+}
+
 function loadData() {
   try {
     const raw = storeGet();
@@ -132,27 +150,35 @@ function escapeHtml(str) {
 /* Native confirm()/alert() are blocked in sandboxed embeds, so all
    confirmations use this in-page dialog instead. */
 
-function showModal(message, okLabel, showCancel) {
+// Resolves true for the main button, "alt" for the optional middle
+// button, and false for Cancel or clicking outside the box.
+function showModal(message, okLabel, showCancel, altLabel) {
   return new Promise((resolve) => {
     const overlay = document.getElementById("modal-overlay");
     const ok = document.getElementById("modal-ok");
+    const alt = document.getElementById("modal-alt");
     const cancel = document.getElementById("modal-cancel");
     document.getElementById("modal-message").textContent = message;
     ok.textContent = okLabel;
+    alt.hidden = !altLabel;
+    if (altLabel) alt.textContent = altLabel;
     cancel.hidden = !showCancel;
     overlay.hidden = false;
     ok.focus();
     const done = (result) => {
       overlay.hidden = true;
       ok.removeEventListener("click", onOk);
+      alt.removeEventListener("click", onAlt);
       cancel.removeEventListener("click", onCancel);
       overlay.removeEventListener("click", onOverlay);
       resolve(result);
     };
     const onOk = () => done(true);
+    const onAlt = () => done("alt");
     const onCancel = () => done(false);
     const onOverlay = (e) => { if (e.target === overlay) done(false); };
     ok.addEventListener("click", onOk);
+    alt.addEventListener("click", onAlt);
     cancel.addEventListener("click", onCancel);
     overlay.addEventListener("click", onOverlay);
   });
@@ -1048,11 +1074,20 @@ document.getElementById("import-input").addEventListener("change", (e) => {
       if (typeof imported !== "object" || imported === null || !Array.isArray(imported.metrics)) {
         throw new Error("Not a valid backup file");
       }
-      if (!(await appConfirm("Restoring will replace ALL current data with the backup. Continue?", "Restore"))) return;
-      data = normalizeData(Object.assign(emptyData(), imported));
+      const choice = await showModal(
+        "How should this file be loaded? “Merge” adds its entries to what you already have (nothing is deleted, duplicates are skipped). “Replace all” wipes your current data first.",
+        "Replace all", true, "Merge"
+      );
+      if (!choice) return;
+      const incoming = normalizeData(Object.assign(emptyData(), imported));
+      if (choice === "alt") {
+        mergeData(incoming);
+      } else {
+        data = incoming;
+      }
       saveData();
       renderAll();
-      appNotice("Backup restored successfully.");
+      appNotice(choice === "alt" ? "File merged into your data." : "Backup restored successfully.");
     } catch (err) {
       appNotice("Sorry, that file doesn't look like a valid backup: " + err.message);
     }
