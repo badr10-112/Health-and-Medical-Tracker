@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Health Tracker</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1>🩺 My Health Tracker</h1>
+    <div class="header-actions">
+      <button id="export-btn" class="btn btn-secondary" title="Download a backup of all your data">⬇ Backup</button>
+      <label class="btn btn-secondary" title="Restore data from a backup file">
+        ⬆ Restore <input type="file" id="import-input" accept=".json" hidden>
+      </label>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+    <button class="tab-btn" data-tab="metrics">Health Metrics</button>
+    <button class="tab-btn" data-tab="supplements">Supplements</button>
+    <button class="tab-btn" data-tab="appointments">Appointments</button>
+    <button class="tab-btn" data-tab="results">Test Results</button>
+  </nav>
+
+  <main>
+    <!-- ============ DASHBOARD ============ -->
+    <section id="tab-dashboard" class="tab-panel active">
+      <div class="dashboard-grid">
+        <div class="card">
+          <h2>💊 Today's Supplements</h2>
+          <div id="dash-supplements"></div>
+        </div>
+        <div class="card">
+          <h2>📅 Upcoming Appointments</h2>
+          <div id="dash-appointments"></div>
+        </div>
+        <div class="card">
+          <h2>📈 Latest Readings</h2>
+          <div id="dash-metrics"></div>
+        </div>
+        <div class="card">
+          <h2>🧪 Recent Test Results</h2>
+          <div id="dash-results"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ HEALTH METRICS ============ -->
+    <section id="tab-metrics" class="tab-panel">
+      <div class="card">
+        <h2>Add a Reading</h2>
+        <form id="metric-form" class="form-grid">
+          <label>Type
+            <select id="metric-type" required>
+              <option value="weight">Weight (kg)</option>
+              <option value="blood_pressure">Blood Pressure (mmHg)</option>
+              <option value="heart_rate">Heart Rate (bpm)</option>
+              <option value="blood_sugar">Blood Sugar (mg/dL)</option>
+              <option value="temperature">Temperature (°C)</option>
+              <option value="sleep">Sleep (hours)</option>
+              <option value="steps">Steps</option>
+            </select>
+          </label>
+          <label>Date
+            <input type="date" id="metric-date" required>
+          </label>
+          <label id="metric-value-label">Value
+            <input type="number" id="metric-value" step="any" required>
+          </label>
+          <label id="metric-value2-label" hidden>Diastolic (lower number)
+            <input type="number" id="metric-value2" step="any">
+          </label>
+          <label class="span-2">Notes (optional)
+            <input type="text" id="metric-notes" placeholder="e.g. measured after breakfast">
+          </label>
+          <button type="submit" class="btn btn-primary span-2">Add Reading</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Trend</h2>
+        <label>Show chart for
+          <select id="chart-type">
+            <option value="weight">Weight</option>
+            <option value="blood_pressure">Blood Pressure</option>
+            <option value="heart_rate">Heart Rate</option>
+            <option value="blood_sugar">Blood Sugar</option>
+            <option value="temperature">Temperature</option>
+            <option value="sleep">Sleep</option>
+            <option value="steps">Steps</option>
+          </select>
+        </label>
+        <div id="chart-container"></div>
+      </div>
+
+      <div class="card">
+        <h2>History</h2>
+        <div id="metric-list"></div>
+      </div>
+    </section>
+
+    <!-- ============ SUPPLEMENTS ============ -->
+    <section id="tab-supplements" class="tab-panel">
+      <div class="card">
+        <h2>Add a Supplement or Medication</h2>
+        <form id="supplement-form" class="form-grid">
+          <label>Name
+            <input type="text" id="supp-name" required placeholder="e.g. Vitamin D3">
+          </label>
+          <label>Dose
+            <input type="text" id="supp-dose" placeholder="e.g. 2000 IU">
+          </label>
+          <label>When
+            <select id="supp-time">
+              <option value="Morning">Morning</option>
+              <option value="Afternoon">Afternoon</option>
+              <option value="Evening">Evening</option>
+              <option value="With meals">With meals</option>
+              <option value="As needed">As needed</option>
+            </select>
+          </label>
+          <label>Notes (optional)
+            <input type="text" id="supp-notes" placeholder="e.g. take with fatty food">
+          </label>
+          <button type="submit" class="btn btn-primary span-2">Add Supplement</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>✅ Today's Checklist</h2>
+        <p class="muted">Tick off what you've taken today. Your history is saved per day.</p>
+        <div id="supplement-checklist"></div>
+      </div>
+
+      <div class="card">
+        <h2>My Supplements</h2>
+        <div id="supplement-list"></div>
+      </div>
+    </section>
+
+    <!-- ============ APPOINTMENTS ============ -->
+    <section id="tab-appointments" class="tab-panel">
+      <div class="card">
+        <h2>Add an Appointment</h2>
+        <form id="appointment-form" class="form-grid">
+          <label>Doctor / Clinic
+            <input type="text" id="appt-doctor" required placeholder="e.g. Dr. Ahmed – Cardiology">
+          </label>
+          <label>Reason
+            <input type="text" id="appt-reason" placeholder="e.g. Annual check-up">
+          </label>
+          <label>Date
+            <input type="date" id="appt-date" required>
+          </label>
+          <label>Time
+            <input type="time" id="appt-time">
+          </label>
+          <label>Location
+            <input type="text" id="appt-location" placeholder="e.g. City Hospital, Room 204">
+          </label>
+          <label>Notes (optional)
+            <input type="text" id="appt-notes" placeholder="e.g. bring previous X-ray">
+          </label>
+          <button type="submit" class="btn btn-primary span-2">Add Appointment</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Upcoming</h2>
+        <div id="appointment-upcoming"></div>
+      </div>
+
+      <div class="card">
+        <h2>Past</h2>
+        <div id="appointment-past"></div>
+      </div>
+    </section>
+
+    <!-- ============ TEST RESULTS ============ -->
+    <section id="tab-results" class="tab-panel">
+      <div class="card">
+        <h2>Add a Test Result</h2>
+        <form id="result-form" class="form-grid">
+          <label>Test name
+            <input type="text" id="result-name" required placeholder="e.g. Vitamin D, HbA1c, Cholesterol">
+          </label>
+          <label>Date
+            <input type="date" id="result-date" required>
+          </label>
+          <label>Result value
+            <input type="number" id="result-value" step="any" required>
+          </label>
+          <label>Unit
+            <input type="text" id="result-unit" placeholder="e.g. ng/mL">
+          </label>
+          <label>Normal range – low (optional)
+            <input type="number" id="result-low" step="any">
+          </label>
+          <label>Normal range – high (optional)
+            <input type="number" id="result-high" step="any">
+          </label>
+          <label class="span-2">Notes (optional)
+            <input type="text" id="result-notes" placeholder="e.g. fasting sample">
+          </label>
+          <button type="submit" class="btn btn-primary span-2">Add Result</button>
+        </form>
+        <p class="muted">Tip: if you enter the normal range from your lab report, results outside it are flagged automatically.</p>
+      </div>
+
+      <div class="card">
+        <h2>All Results</h2>
+        <div id="result-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>Your data is stored only in this browser on this device. Use <strong>Backup</strong> regularly to save a copy.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
