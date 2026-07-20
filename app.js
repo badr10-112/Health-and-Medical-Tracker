@@ -128,6 +128,44 @@ function escapeHtml(str) {
     .replaceAll("'", "&#039;");
 }
 
+/* ---------------- In-app dialogs ---------------- */
+/* Native confirm()/alert() are blocked in sandboxed embeds, so all
+   confirmations use this in-page dialog instead. */
+
+function showModal(message, okLabel, showCancel) {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById("modal-overlay");
+    const ok = document.getElementById("modal-ok");
+    const cancel = document.getElementById("modal-cancel");
+    document.getElementById("modal-message").textContent = message;
+    ok.textContent = okLabel;
+    cancel.hidden = !showCancel;
+    overlay.hidden = false;
+    ok.focus();
+    const done = (result) => {
+      overlay.hidden = true;
+      ok.removeEventListener("click", onOk);
+      cancel.removeEventListener("click", onCancel);
+      overlay.removeEventListener("click", onOverlay);
+      resolve(result);
+    };
+    const onOk = () => done(true);
+    const onCancel = () => done(false);
+    const onOverlay = (e) => { if (e.target === overlay) done(false); };
+    ok.addEventListener("click", onOk);
+    cancel.addEventListener("click", onCancel);
+    overlay.addEventListener("click", onOverlay);
+  });
+}
+
+function appConfirm(message, okLabel = "Delete") {
+  return showModal(message, okLabel, true);
+}
+
+function appNotice(message) {
+  return showModal(message, "OK", false);
+}
+
 /* ---------------- Tabs ---------------- */
 
 document.querySelectorAll(".tab-btn").forEach((btn) => {
@@ -933,24 +971,28 @@ function renderDashboard() {
    DELETION & CHECKBOX EVENTS (event delegation)
    ========================================================= */
 
-document.body.addEventListener("click", (e) => {
+document.body.addEventListener("click", async (e) => {
   const t = e.target;
-  const confirmDelete = (label) => confirm(`Delete this ${label}? This cannot be undone.`);
+  const confirmDelete = (label) => appConfirm(`Delete this ${label}? This cannot be undone.`);
 
-  if (t.dataset.deleteMetric && confirmDelete("reading")) {
+  if (t.dataset.deleteMetric) {
+    if (!(await confirmDelete("reading"))) return;
     data.metrics = data.metrics.filter((m) => m.id !== t.dataset.deleteMetric);
-  } else if (t.dataset.deleteSupplement && confirmDelete("supplement")) {
+  } else if (t.dataset.deleteSupplement) {
+    if (!(await confirmDelete("supplement"))) return;
     data.supplements = data.supplements.filter((s) => s.id !== t.dataset.deleteSupplement);
-  } else if (t.dataset.deleteAppointment && confirmDelete("appointment")) {
+  } else if (t.dataset.deleteAppointment) {
+    if (!(await confirmDelete("appointment"))) return;
     data.appointments = data.appointments.filter((a) => a.id !== t.dataset.deleteAppointment);
-  } else if (t.dataset.deleteResult && confirmDelete("test result")) {
+  } else if (t.dataset.deleteResult) {
+    if (!(await confirmDelete("test result"))) return;
     data.results = data.results.filter((r) => r.id !== t.dataset.deleteResult);
   } else if (t.dataset.deleteShown) {
     const shown = resultFilter === "all"
       ? data.results
       : data.results.filter((r) => r.category === resultFilter);
     const label = resultFilter === "all" ? "" : ` ${CATEGORY_INFO[resultFilter].label}`;
-    if (!confirm(`Delete ALL ${shown.length}${label} test results currently shown? This cannot be undone.`)) return;
+    if (!(await appConfirm(`Delete ALL ${shown.length}${label} test results currently shown? This cannot be undone.`, "Delete all"))) return;
     data.results = resultFilter === "all"
       ? []
       : data.results.filter((r) => r.category !== resultFilter);
@@ -1000,19 +1042,19 @@ document.getElementById("import-input").addEventListener("change", (e) => {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
     try {
       const imported = JSON.parse(reader.result);
       if (typeof imported !== "object" || imported === null || !Array.isArray(imported.metrics)) {
         throw new Error("Not a valid backup file");
       }
-      if (!confirm("Restoring will replace ALL current data with the backup. Continue?")) return;
+      if (!(await appConfirm("Restoring will replace ALL current data with the backup. Continue?", "Restore"))) return;
       data = normalizeData(Object.assign(emptyData(), imported));
       saveData();
       renderAll();
-      alert("Backup restored successfully.");
+      appNotice("Backup restored successfully.");
     } catch (err) {
-      alert("Sorry, that file doesn't look like a valid backup: " + err.message);
+      appNotice("Sorry, that file doesn't look like a valid backup: " + err.message);
     }
   };
   reader.readAsText(file);
