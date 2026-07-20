@@ -20,6 +20,12 @@ device.
 - **Test Results** — record lab results with units and the normal range from
   your lab report. Anything outside the range is automatically flagged
   "Above range" or "Below range".
+- **Import from a lab report** — choose your lab report PDF (or paste its
+  text) and the app detects test names, values, units, and normal ranges,
+  shows you an editable preview, and adds everything in one click. The PDF is
+  read entirely on your device using the open-source pdf.js library (bundled
+  in `vendor/`) — nothing is uploaded. Scanned/photographed reports have no
+  readable text, so for those use paste or manual entry.
 
 ## How to use it
 
@@ -53,6 +59,7 @@ Some things you might want to add as you learn more:
 - Editing entries in place (currently: delete and re-add)
 - Reminders/notifications for supplements and appointments
 - Attaching files (e.g. photos of lab reports) to results
+- Trend charts for repeated test results (e.g. Vitamin D over time)
 - Syncing between devices via a small backend
 
 ## Disclaimer

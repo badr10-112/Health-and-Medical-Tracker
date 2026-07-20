@@ -17,6 +17,11 @@
     </div>
   </header>
 
+  <div id="storage-warning" class="storage-warning" hidden>
+    ⚠ This browser is blocking saved data, so entries will be lost when you close the page.
+    Use the Backup button before leaving, and Restore to load your data next time.
+  </div>
+
   <nav class="tabs">
     <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
     <button class="tab-btn" data-tab="metrics">Health Metrics</button>
@@ -182,6 +187,27 @@
     <!-- ============ TEST RESULTS ============ -->
     <section id="tab-results" class="tab-panel">
       <div class="card">
+        <h2>📥 Import from a Lab Report</h2>
+        <p class="muted">
+          Choose your lab report PDF and the app will detect test names, values, units and
+          normal ranges — everything is read on your device, nothing is uploaded.
+          You review and correct the results before they are saved.
+        </p>
+        <div class="import-actions">
+          <label class="btn btn-primary">
+            📄 Choose PDF <input type="file" id="import-pdf" accept=".pdf,application/pdf" hidden>
+          </label>
+          <button type="button" id="paste-toggle" class="btn btn-outline">📋 Paste text instead</button>
+        </div>
+        <div id="paste-area" hidden>
+          <textarea id="import-text" rows="6" placeholder="Copy the text from your lab report and paste it here…"></textarea>
+          <button type="button" id="parse-text-btn" class="btn btn-primary">Detect results</button>
+        </div>
+        <div id="import-status" class="muted" hidden></div>
+        <div id="import-preview"></div>
+      </div>
+
+      <div class="card">
         <h2>Add a Test Result</h2>
         <form id="result-form" class="form-grid">
           <label>Test name
@@ -221,6 +247,11 @@
     <p>Your data is stored only in this browser on this device. Use <strong>Backup</strong> regularly to save a copy.</p>
   </footer>
 
+  <!-- pdf.js reads lab-report PDFs locally in the browser. The worker build is
+       loaded as a plain script so PDF parsing also works when this file is
+       opened directly from disk (file://), where real workers are blocked. -->
+  <script src="vendor/pdf.min.js"></script>
+  <script src="vendor/pdf.worker.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

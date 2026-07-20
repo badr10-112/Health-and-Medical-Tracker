@@ -17,6 +17,26 @@ const METRIC_INFO = {
 };
 
 /* ---------------- Storage ---------------- */
+/* Some embedded browsers block localStorage entirely; fall back to
+   in-memory storage and warn so Backup/Restore can bridge sessions. */
+
+let storageAvailable = true;
+const memoryStore = {};
+try {
+  localStorage.setItem("__ht_test", "1");
+  localStorage.removeItem("__ht_test");
+} catch (e) {
+  storageAvailable = false;
+}
+
+function storeGet() {
+  return storageAvailable ? localStorage.getItem(STORAGE_KEY) : (memoryStore[STORAGE_KEY] ?? null);
+}
+
+function storeSet(value) {
+  if (storageAvailable) localStorage.setItem(STORAGE_KEY, value);
+  else memoryStore[STORAGE_KEY] = value;
+}
 
 function emptyData() {
   return {
@@ -30,7 +50,7 @@ function emptyData() {
 
 function loadData() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = storeGet();
     if (!raw) return emptyData();
     return Object.assign(emptyData(), JSON.parse(raw));
   } catch (e) {
@@ -40,7 +60,7 @@ function loadData() {
 }
 
 function saveData() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  storeSet(JSON.stringify(data));
 }
 
 let data = loadData();
@@ -200,28 +220,27 @@ function renderChart() {
   for (let i = 0; i <= 4; i++) {
     const v = min + ((max - min) / 4) * i;
     const yy = y(v);
-    axisLabels += `<text x="${pad.left - 8}" y="${yy + 4}" text-anchor="end" font-size="11" fill="#6b7a85">${v >= 100 ? Math.round(v) : v.toFixed(1)}</text>
-      <line x1="${pad.left}" y1="${yy}" x2="${W - pad.right}" y2="${yy}" stroke="#e5ecef" stroke-width="1"/>`;
+    axisLabels += `<text x="${pad.left - 8}" y="${yy + 4}" text-anchor="end" font-size="11" fill="var(--muted)">${v >= 100 ? Math.round(v) : v.toFixed(1)}</text>
+      <line x1="${pad.left}" y1="${yy}" x2="${W - pad.right}" y2="${yy}" stroke="var(--border)" stroke-width="1"/>`;
   }
 
   // X-axis: first, middle and last date
   const idxs = [0, Math.floor((points.length - 1) / 2), points.length - 1];
   const xLabels = [...new Set(idxs)].map((i) =>
-    `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="#6b7a85">${points[i].date}</text>`
+    `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="var(--muted)">${points[i].date}</text>`
   ).join("");
 
   const isBP = type === "blood_pressure";
-  const svg = `
+  container.innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Trend chart">
       ${axisLabels}
       ${xLabels}
-      <path d="${linePath((p) => p.value)}" fill="none" stroke="#0d7377" stroke-width="2"/>
-      ${dots((p) => p.value, "#0d7377")}
-      ${isBP ? `<path d="${linePath((p) => p.value2)}" fill="none" stroke="#e67e22" stroke-width="2"/>` : ""}
-      ${isBP ? dots((p) => p.value2, "#e67e22") : ""}
+      <path d="${linePath((p) => p.value)}" fill="none" stroke="var(--accent)" stroke-width="2"/>
+      ${dots((p) => p.value, "var(--accent)")}
+      ${isBP ? `<path d="${linePath((p) => p.value2)}" fill="none" stroke="var(--chart-line2)" stroke-width="2"/>` : ""}
+      ${isBP ? dots((p) => p.value2, "var(--chart-line2)") : ""}
     </svg>
-    ${isBP ? '<p class="muted">Green = systolic, orange = diastolic. Hover a dot for details.</p>' : '<p class="muted">Hover a dot for details.</p>'}`;
-  container.innerHTML = svg;
+    ${isBP ? '<p class="muted">Teal = systolic, orange = diastolic. Hover a dot for details.</p>' : '<p class="muted">Hover a dot for details.</p>'}`;
 }
 
 document.getElementById("chart-type").addEventListener("change", renderChart);
@@ -431,6 +450,207 @@ function renderResults() {
 }
 
 /* =========================================================
+   IMPORT FROM LAB REPORT
+   The PDF (or pasted text) is processed entirely in the
+   browser; nothing is uploaded anywhere.
+   ========================================================= */
+
+// Lines that are clearly report metadata rather than test results.
+const IMPORT_SKIP = /\b(page|tel|phone|fax|date of birth|dob|patient|dr|doctor|physician|consultant|specimen|collected|received|reported|printed|authorised|authorized|verified|address|street|road|hospital|clinic|laborator|sample|barcode|gender|sex|age|years|mrn|passport|insurance|policy|invoice|amount|price|version|method|comment)\b/i;
+
+// Matches lines like:
+//   Hemoglobin 14.2 g/dL 13.0 - 17.0
+//   Vitamin D 25-OH: 18 ng/mL (30 - 100)
+//   Cholesterol, Total 210 H mg/dL < 200
+//   WBC 5,400 /uL 4,000 - 11,000
+const NUM_PART = "(\\d[\\d,]*(?:\\.\\d+)?)";
+const UNIT_PART = "([A-Za-zµμ%/][\\w/%µμ.^*-]{0,14})";
+const LAB_LINE_RE = new RegExp(
+  "^([A-Za-z][A-Za-z0-9 .,()/'%+-]{2,60}?)" +   // 1: test name
+  "[:\\s]\\s*" +
+  NUM_PART +                                      // 2: value
+  "(?:\\s*\\*?\\s*[HL]\\b)?" +                    // optional High/Low flag
+  "(?:\\s*" + UNIT_PART + ")?" +                  // 3: unit (before range)
+  "(?:\\s*[\\(\\[]?\\s*(?:" +
+    NUM_PART + "\\s*[-–—]\\s*" + NUM_PART +       // 4,5: low - high
+    "|[<≤]\\s*=?\\s*" + NUM_PART +                // 6: upper limit only
+    "|[>≥]\\s*=?\\s*" + NUM_PART +                // 7: lower limit only
+  ")\\s*[\\)\\]]?)?" +
+  "(?:\\s*" + UNIT_PART + ")?" +                  // 8: unit (after range)
+  "\\s*$"
+);
+
+function importNum(str) {
+  return str == null ? null : parseFloat(str.replaceAll(",", ""));
+}
+
+function parseLabText(text) {
+  const found = [];
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.replace(/\s+/g, " ").trim();
+    if (!line || line.length > 120) continue;
+    const m = line.match(LAB_LINE_RE);
+    if (!m) continue;
+    const name = m[1].replace(/[\s:,-]+$/, "").trim();
+    const letters = (name.match(/[A-Za-z]/g) || []).length;
+    if (letters < 3 || IMPORT_SKIP.test(name)) continue;
+    const unit = m[3] || m[8] || "";
+    const low = m[4] != null ? importNum(m[4]) : m[7] != null ? importNum(m[7]) : null;
+    const high = m[5] != null ? importNum(m[5]) : m[6] != null ? importNum(m[6]) : null;
+    // Without a unit or a range the number is probably not a lab value.
+    if (!unit && low == null && high == null) continue;
+    found.push({ name, value: importNum(m[2]), unit, low, high });
+  }
+  return found;
+}
+
+async function extractPdfText(arrayBuffer) {
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let text = "";
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    // pdf.js returns text fragments with coordinates; rebuild visual lines by
+    // grouping fragments with (almost) the same vertical position.
+    const lines = [];
+    for (const item of content.items) {
+      if (!item.str || !item.str.trim()) continue;
+      const y = item.transform[5];
+      let line = lines.find((l) => Math.abs(l.y - y) < 3);
+      if (!line) {
+        line = { y, items: [] };
+        lines.push(line);
+      }
+      line.items.push({ x: item.transform[4], str: item.str });
+    }
+    lines.sort((a, b) => b.y - a.y);
+    for (const line of lines) {
+      text += line.items.sort((a, b) => a.x - b.x).map((i) => i.str).join(" ") + "\n";
+    }
+  }
+  return text;
+}
+
+const importStatus = document.getElementById("import-status");
+const importPreview = document.getElementById("import-preview");
+
+function showImportStatus(msg) {
+  importStatus.hidden = !msg;
+  importStatus.textContent = msg || "";
+}
+
+function renderImportPreview(candidates) {
+  if (candidates.length === 0) {
+    importPreview.innerHTML = "";
+    showImportStatus("No test results detected. If your report is a scanned image, the text can't be read — use “Paste text instead” or the manual form below.");
+    return;
+  }
+  showImportStatus("");
+  importPreview.innerHTML = `
+    <p class="muted">Found ${candidates.length} possible result${candidates.length === 1 ? "" : "s"}. Untick anything that isn't a real result, correct any values, then add them.</p>
+    <div class="table-wrap">
+      <table class="results-table import-table">
+        <thead>
+          <tr><th></th><th>Test</th><th>Value</th><th>Unit</th><th>Range low</th><th>Range high</th></tr>
+        </thead>
+        <tbody>
+          ${candidates.map((c, i) => `
+            <tr>
+              <td><input type="checkbox" class="import-check" data-idx="${i}" checked></td>
+              <td><input type="text" class="import-name" data-idx="${i}" value="${escapeHtml(c.name)}"></td>
+              <td><input type="number" step="any" class="import-value" data-idx="${i}" value="${c.value ?? ""}"></td>
+              <td><input type="text" class="import-unit" data-idx="${i}" value="${escapeHtml(c.unit)}"></td>
+              <td><input type="number" step="any" class="import-low" data-idx="${i}" value="${c.low ?? ""}"></td>
+              <td><input type="number" step="any" class="import-high" data-idx="${i}" value="${c.high ?? ""}"></td>
+            </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>
+    <div class="import-footer">
+      <label>Date of these results
+        <input type="date" id="import-date" value="${todayStr()}">
+      </label>
+      <button type="button" id="import-add-btn" class="btn btn-primary">Add selected results</button>
+      <button type="button" id="import-cancel-btn" class="btn btn-outline">Cancel</button>
+    </div>`;
+
+  document.getElementById("import-add-btn").addEventListener("click", () => {
+    const date = document.getElementById("import-date").value || todayStr();
+    let added = 0;
+    importPreview.querySelectorAll(".import-check").forEach((box) => {
+      if (!box.checked) return;
+      const i = box.dataset.idx;
+      const get = (cls) => importPreview.querySelector(`.${cls}[data-idx="${i}"]`).value;
+      const name = get("import-name").trim();
+      const value = parseFloat(get("import-value"));
+      if (!name || Number.isNaN(value)) return;
+      const lowRaw = get("import-low");
+      const highRaw = get("import-high");
+      data.results.push({
+        id: uid(),
+        name,
+        date,
+        value,
+        unit: get("import-unit").trim(),
+        low: lowRaw === "" ? null : parseFloat(lowRaw),
+        high: highRaw === "" ? null : parseFloat(highRaw),
+        notes: "",
+      });
+      added++;
+    });
+    saveData();
+    importPreview.innerHTML = "";
+    showImportStatus(added > 0
+      ? `Added ${added} result${added === 1 ? "" : "s"} — they're in the table below and on your dashboard.`
+      : "Nothing was added — no rows were selected.");
+    renderAll();
+  });
+
+  document.getElementById("import-cancel-btn").addEventListener("click", () => {
+    importPreview.innerHTML = "";
+    showImportStatus("");
+  });
+}
+
+document.getElementById("import-pdf").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  importPreview.innerHTML = "";
+  if (typeof pdfjsLib === "undefined") {
+    showImportStatus("The PDF reader isn't available here — use “Paste text instead”.");
+    return;
+  }
+  showImportStatus("Reading your PDF…");
+  try {
+    const text = await extractPdfText(await file.arrayBuffer());
+    if (!text.trim()) {
+      renderImportPreview([]);
+      return;
+    }
+    renderImportPreview(parseLabText(text));
+  } catch (err) {
+    console.error("PDF import failed:", err);
+    showImportStatus("Sorry, this PDF couldn't be read (" + err.message + "). Try “Paste text instead” or the manual form below.");
+  }
+});
+
+document.getElementById("paste-toggle").addEventListener("click", () => {
+  const area = document.getElementById("paste-area");
+  area.hidden = !area.hidden;
+});
+
+document.getElementById("parse-text-btn").addEventListener("click", () => {
+  const text = document.getElementById("import-text").value;
+  importPreview.innerHTML = "";
+  if (!text.trim()) {
+    showImportStatus("Paste the text of your report first, then press “Detect results”.");
+    return;
+  }
+  renderImportPreview(parseLabText(text));
+});
+
+/* =========================================================
    DASHBOARD
    ========================================================= */
 
@@ -558,6 +778,9 @@ function renderAll() {
   renderResults();
 }
 
+if (!storageAvailable) {
+  document.getElementById("storage-warning").hidden = false;
+}
 document.getElementById("metric-date").value = todayStr();
 document.getElementById("result-date").value = todayStr();
 syncMetricForm();

@@ -5,11 +5,16 @@
   padding: 0;
 }
 
+/* Theme tokens: light by default, dark via OS preference or an explicit
+   data-theme attribute on <html> (which wins in both directions). */
 :root {
-  --primary: #0d7377;
-  --primary-dark: #0a5c5f;
+  --header-bg: #0d7377;
+  --header-bg-dark: #0a5c5f;
+  --accent: #0d7377;
+  --accent-strong: #0a5c5f;
   --bg: #f4f7f8;
   --card-bg: #ffffff;
+  --input-bg: #ffffff;
   --text: #23313a;
   --muted: #6b7a85;
   --border: #dfe7ea;
@@ -18,7 +23,69 @@
   --warning-text: #b9770e;
   --ok-bg: #e8f6ef;
   --ok-text: #1e8449;
+  --soon-bg: #eaf2fb;
+  --soon-text: #2471a3;
+  --chart-line2: #e67e22;
   --radius: 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: #3bb8bd;
+    --accent-strong: #5accd0;
+    --bg: #10181c;
+    --card-bg: #1a2429;
+    --input-bg: #12191d;
+    --text: #e2ebee;
+    --muted: #8fa3ad;
+    --border: #2c3a41;
+    --danger: #e07b6d;
+    --warning-bg: #3a2c14;
+    --warning-text: #e6b566;
+    --ok-bg: #143726;
+    --ok-text: #5ecf96;
+    --soon-bg: #16303f;
+    --soon-text: #6db3e8;
+    --chart-line2: #f0a35c;
+  }
+}
+
+:root[data-theme="light"] {
+  --accent: #0d7377;
+  --accent-strong: #0a5c5f;
+  --bg: #f4f7f8;
+  --card-bg: #ffffff;
+  --input-bg: #ffffff;
+  --text: #23313a;
+  --muted: #6b7a85;
+  --border: #dfe7ea;
+  --danger: #c0392b;
+  --warning-bg: #fdf2e3;
+  --warning-text: #b9770e;
+  --ok-bg: #e8f6ef;
+  --ok-text: #1e8449;
+  --soon-bg: #eaf2fb;
+  --soon-text: #2471a3;
+  --chart-line2: #e67e22;
+}
+
+:root[data-theme="dark"] {
+  --accent: #3bb8bd;
+  --accent-strong: #5accd0;
+  --bg: #10181c;
+  --card-bg: #1a2429;
+  --input-bg: #12191d;
+  --text: #e2ebee;
+  --muted: #8fa3ad;
+  --border: #2c3a41;
+  --danger: #e07b6d;
+  --warning-bg: #3a2c14;
+  --warning-text: #e6b566;
+  --ok-bg: #143726;
+  --ok-text: #5ecf96;
+  --soon-bg: #16303f;
+  --soon-text: #6db3e8;
+  --chart-line2: #f0a35c;
 }
 
 body {
@@ -36,7 +103,7 @@ body {
   flex-wrap: wrap;
   gap: 0.5rem;
   padding: 1rem 1.5rem;
-  background: var(--primary);
+  background: var(--header-bg);
   color: #fff;
 }
 
@@ -53,7 +120,7 @@ body {
 .tabs {
   display: flex;
   flex-wrap: wrap;
-  background: var(--primary-dark);
+  background: var(--header-bg-dark);
   padding: 0 1rem;
 }
 
@@ -131,18 +198,19 @@ main {
   grid-column: span 2;
 }
 
-input, select {
+input, select, textarea {
   padding: 0.55rem 0.65rem;
   border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 0.95rem;
   font-family: inherit;
-  background: #fff;
+  background: var(--input-bg);
   color: var(--text);
+  color-scheme: light dark;
 }
 
-input:focus, select:focus {
-  outline: 2px solid var(--primary);
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
@@ -159,12 +227,12 @@ input:focus, select:focus {
 }
 
 .btn-primary {
-  background: var(--primary);
+  background: var(--header-bg);
   color: #fff;
 }
 
 .btn-primary:hover {
-  background: var(--primary-dark);
+  background: var(--header-bg-dark);
 }
 
 .btn-secondary {
@@ -176,6 +244,16 @@ input:focus, select:focus {
 
 .btn-secondary:hover {
   background: rgba(255, 255, 255, 0.3);
+}
+
+.btn-outline {
+  background: none;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.btn-outline:hover {
+  background: var(--soon-bg);
 }
 
 .btn-delete {
@@ -250,8 +328,8 @@ input:focus, select:focus {
 }
 
 .badge-soon {
-  background: #eaf2fb;
-  color: #2471a3;
+  background: var(--soon-bg);
+  color: var(--soon-text);
 }
 
 /* ============ Checklist ============ */
@@ -270,7 +348,7 @@ input:focus, select:focus {
 .check-row input[type="checkbox"] {
   width: 1.15rem;
   height: 1.15rem;
-  accent-color: var(--primary);
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
@@ -317,6 +395,76 @@ input:focus, select:focus {
 
 .table-wrap {
   overflow-x: auto;
+}
+
+/* ============ Import from lab report ============ */
+.import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+#paste-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+#paste-area textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+#paste-area .btn {
+  align-self: flex-start;
+}
+
+.import-table input[type="text"] {
+  min-width: 9rem;
+  width: 100%;
+}
+
+.import-table input[type="number"] {
+  width: 5.5rem;
+}
+
+.import-table input[type="checkbox"] {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.import-table td {
+  vertical-align: middle;
+}
+
+.import-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.import-footer label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* ============ Notices ============ */
+.storage-warning {
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  padding: 0.6rem 1rem;
+  text-align: center;
+  font-size: 0.85rem;
 }
 
 /* ============ Footer ============ */
