@@ -696,6 +696,82 @@ input:focus, select:focus, textarea:focus {
   gap: 0.5rem;
 }
 
+/* ============ Dashboard stats ============ */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  align-items: flex-start;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.stat-tile:hover {
+  border-color: var(--accent);
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+}
+
+.stat-tile.stat-warn {
+  border-color: var(--above-bg);
+}
+
+.stat-tile.stat-warn .stat-value {
+  color: var(--above-bg);
+}
+
+/* ============ Clickable rows & change flags ============ */
+.link-row {
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.link-row:hover {
+  background: var(--soon-bg);
+}
+
+.result-analysis {
+  border-left: 3px solid transparent;
+  padding-left: 0.5rem;
+}
+
+.result-analysis.change-bad { border-left-color: var(--above-bg); }
+.result-analysis.change-watch { border-left-color: var(--warning-text); }
+.result-analysis.change-good { border-left-color: var(--ok-text); }
+
+.change-flag {
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-top: 0.2rem;
+}
+
+.change-bad .change-flag { color: var(--above-bg); }
+.change-watch .change-flag { color: var(--warning-text); }
+.change-good .change-flag { color: var(--ok-text); }
+
 /* ============ News card ============ */
 .news-list {
   list-style: none;

@@ -34,37 +34,11 @@
     <!-- ============ DASHBOARD ============ -->
     <section id="tab-dashboard" class="tab-panel active">
       <div class="card profile-card">
-        <div class="profile-head">
-          <h2>👤 My Profile</h2>
-          <button type="button" id="profile-edit-btn" class="btn btn-outline">Edit</button>
-        </div>
+        <h2>👤 My Profile</h2>
         <div id="profile-view"></div>
-        <form id="profile-form" class="form-grid" hidden>
-          <label>Blood type
-            <select id="profile-blood">
-              <option value="">—</option>
-              <option value="A+">A+</option>
-              <option value="A−">A−</option>
-              <option value="B+">B+</option>
-              <option value="B−">B−</option>
-              <option value="AB+">AB+</option>
-              <option value="AB−">AB−</option>
-              <option value="O+">O+</option>
-              <option value="O−">O−</option>
-            </select>
-          </label>
-          <label>Date of birth
-            <input type="date" id="profile-dob">
-          </label>
-          <label>Height (cm)
-            <input type="number" id="profile-height" step="any" min="0" placeholder="e.g. 176">
-          </label>
-          <div class="span-2 profile-actions">
-            <button type="submit" class="btn btn-primary">Save</button>
-            <button type="button" id="profile-cancel-btn" class="btn btn-outline">Cancel</button>
-          </div>
-        </form>
       </div>
+
+      <div id="dash-stats" class="stat-row"></div>
 
       <div class="dashboard-grid">
         <div class="card">

@@ -313,13 +313,16 @@ function appNotice(message) {
 
 /* ---------------- Tabs ---------------- */
 
+function activateTab(name) {
+  document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+  document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+  const panel = document.getElementById("tab-" + name);
+  if (panel) panel.classList.add("active");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
 document.querySelectorAll(".tab-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
-    document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
-    btn.classList.add("active");
-    document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
-  });
+  btn.addEventListener("click", () => activateTab(btn.dataset.tab));
 });
 
 /* =========================================================
@@ -1105,69 +1108,150 @@ function ageFromDob(dob) {
   return age >= 0 && age < 130 ? age : null;
 }
 
+// Latest logged weight reading (Health Metrics tab), or null.
+function latestWeight() {
+  const ws = data.metrics
+    .filter((m) => m.type === "weight" && typeof m.value === "number" && !Number.isNaN(m.value))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  return ws.length ? ws[ws.length - 1] : null;
+}
+
+// BMI from profile height + latest weight. Returns null if either is missing.
+function bmiInfo() {
+  const h = data.profile && data.profile.heightCm;
+  const w = latestWeight();
+  if (!h || h <= 0 || !w) return null;
+  const bmi = w.value / Math.pow(h / 100, 2);
+  const cat = bmi < 18.5 ? "Underweight" : bmi < 25 ? "Normal" : bmi < 30 ? "Overweight" : "Obese";
+  return { bmi, cat, weight: w };
+}
+
 function renderProfile() {
   const p = data.profile || {};
   const view = document.getElementById("profile-view");
   const age = ageFromDob(p.dob);
+  const bmi = bmiInfo();
   const facts = [];
   if (p.bloodType) facts.push(["Blood type", escapeHtml(p.bloodType)]);
   if (age != null) facts.push(["Age", `${age} years`]);
   if (p.dob) facts.push(["Date of birth", formatDate(p.dob)]);
   if (p.heightCm) facts.push(["Height", `${escapeHtml(String(p.heightCm))} cm`]);
+  if (bmi) facts.push(["BMI", `${bmi.bmi.toFixed(1)} · ${bmi.cat}`]);
 
   if (facts.length === 0) {
-    view.innerHTML = '<p class="empty">No profile yet — press Edit to add your blood type, date of birth, and height.</p>';
+    view.innerHTML = '<p class="empty">No profile yet — use ⬆ Restore to load your profile file (blood type, date of birth, height).</p>';
     return;
   }
+
+  // Explain how BMI is derived, or how to make it appear.
+  let bmiNote = "";
+  if (bmi) {
+    bmiNote = `<p class="muted">BMI uses your height and your latest weight (${escapeHtml(String(bmi.weight.value))} kg on ${formatDate(bmi.weight.date)}). It updates automatically each time you log a new weight.</p>`;
+  } else if (p.heightCm) {
+    bmiNote = '<p class="muted">Add a weight reading in the Health Metrics tab and your BMI will appear here automatically.</p>';
+  }
+
   view.innerHTML = `
     <div class="profile-facts">
       ${facts.map(([k, v]) => `<div class="profile-fact"><span class="profile-fact-label">${k}</span><span class="profile-fact-value">${v}</span></div>`).join("")}
     </div>
+    ${bmiNote}
     ${p.bloodType ? `<p class="profile-brief">${bloodBrief(p.bloodType)}</p>` : ""}`;
 }
-
-const profileForm = document.getElementById("profile-form");
-const profileView = document.getElementById("profile-view");
-
-function openProfileEditor() {
-  const p = data.profile || {};
-  document.getElementById("profile-blood").value = p.bloodType || "";
-  document.getElementById("profile-dob").value = p.dob || "";
-  document.getElementById("profile-height").value = p.heightCm ?? "";
-  profileView.hidden = true;
-  document.getElementById("profile-edit-btn").hidden = true;
-  profileForm.hidden = false;
-}
-
-function closeProfileEditor() {
-  profileForm.hidden = true;
-  profileView.hidden = false;
-  document.getElementById("profile-edit-btn").hidden = false;
-}
-
-document.getElementById("profile-edit-btn").addEventListener("click", openProfileEditor);
-document.getElementById("profile-cancel-btn").addEventListener("click", closeProfileEditor);
-
-profileForm.addEventListener("submit", (e) => {
-  e.preventDefault();
-  const heightRaw = document.getElementById("profile-height").value;
-  data.profile = {
-    bloodType: document.getElementById("profile-blood").value,
-    dob: document.getElementById("profile-dob").value,
-    heightCm: heightRaw === "" ? null : parseFloat(heightRaw),
-  };
-  saveData();
-  closeProfileEditor();
-  renderProfile();
-});
 
 /* =========================================================
    DASHBOARD
    ========================================================= */
 
+function fmtNum(n) {
+  return Math.abs(n) >= 100 ? Math.round(n) : Math.round(n * 100) / 100;
+}
+
+function statusKind(r) {
+  if (r.low == null && r.high == null) return "none";
+  if (r.low != null && r.value < r.low) return "below";
+  if (r.high != null && r.value > r.high) return "above";
+  return "in";
+}
+
+// One entry per test: its latest result, the previous one, and history stats.
+function resultAnalyses() {
+  const byTest = new Map();
+  for (const r of data.results) {
+    const key = r.name.trim().toLowerCase();
+    if (!byTest.has(key)) byTest.set(key, []);
+    byTest.get(key).push(r);
+  }
+  const out = [];
+  for (const list of byTest.values()) {
+    const hist = [...list].sort((a, b) => a.date.localeCompare(b.date));
+    const nums = hist.map((h) => h.value).filter((v) => typeof v === "number" && !Number.isNaN(v));
+    if (nums.length === 0) continue;
+    out.push({
+      latest: hist[hist.length - 1],
+      prev: hist.length >= 2 ? hist[hist.length - 2] : null,
+      count: hist.length,
+      min: Math.min(...nums),
+      max: Math.max(...nums),
+      avg: nums.reduce((a, b) => a + b, 0) / nums.length,
+    });
+  }
+  return out;
+}
+
+// Describes the change from the previous reading to the latest for one test,
+// and flags notable movements (crossing the normal range, or a big swing).
+function analyzeChange(a) {
+  const { latest, prev } = a;
+  const nowKind = statusKind(latest);
+  if (!prev) return { cls: "", label: "First recording of this test", detail: "" };
+
+  const delta = latest.value - prev.value;
+  const pct = prev.value !== 0 ? (delta / Math.abs(prev.value)) * 100 : null;
+  const arrow = delta > 0 ? "▲" : delta < 0 ? "▼" : "—";
+  const prevKind = statusKind(prev);
+  const absPct = pct == null ? 0 : Math.abs(pct);
+  const fmtDelta = (delta > 0 ? "+" : delta < 0 ? "−" : "") + fmtNum(Math.abs(delta));
+  const pctText = pct == null ? "" : ` (${pct > 0 ? "+" : ""}${pct.toFixed(0)}%)`;
+  const detail = `${arrow} ${fmtDelta} ${escapeHtml(latest.unit)}${pctText} vs ${escapeHtml(String(prev.value))} on ${formatDate(prev.date)}`;
+
+  let cls = "", label = "";
+  if (prevKind === "in" && (nowKind === "above" || nowKind === "below")) {
+    cls = "change-bad";
+    label = nowKind === "above" ? "⚠ Moved above the normal range" : "⚠ Moved below the normal range";
+  } else if ((prevKind === "above" || prevKind === "below") && nowKind === "in") {
+    cls = "change-good";
+    label = "✓ Back within the normal range";
+  } else if ((nowKind === "above" || nowKind === "below") && absPct >= 15) {
+    cls = "change-watch";
+    label = `${arrow} Moved ${absPct.toFixed(0)}% — still outside range`;
+  } else if (absPct >= 25) {
+    cls = "change-watch";
+    label = `${arrow} Notable ${absPct.toFixed(0)}% change`;
+  }
+  return { cls, label, detail };
+}
+
 function renderDashboard() {
   renderProfile();
   renderChecklist("dash-supplements");
+
+  // Summary stats (clickable KPI row)
+  const analysesAll = resultAnalyses();
+  const outNow = analysesAll.filter((a) => ["above", "below"].includes(statusKind(a.latest))).length;
+  const lastLab = data.results.length
+    ? [...data.results].sort((a, b) => b.date.localeCompare(a.date))[0].date : null;
+  const stats = [
+    { label: "Results logged", value: data.results.length },
+    { label: "Tests tracked", value: analysesAll.length },
+    { label: "Out of range now", value: outNow, cls: outNow ? "stat-warn" : "" },
+    { label: "Last lab", value: lastLab ? formatDate(lastLab) : "—" },
+  ];
+  document.getElementById("dash-stats").innerHTML = stats.map((s) => `
+    <button type="button" class="stat-tile ${s.cls || ""}" data-goto="results">
+      <span class="stat-value">${escapeHtml(String(s.value))}</span>
+      <span class="stat-label">${escapeHtml(s.label)}</span>
+    </button>`).join("");
 
   // Upcoming appointments (next 3)
   const today = todayStr();
@@ -1189,7 +1273,7 @@ function renderDashboard() {
     latestList.length ? latestList.map((m) => {
       const info = METRIC_INFO[m.type] || { label: m.type };
       return `
-        <div class="item-row">
+        <div class="item-row link-row" data-goto="metrics">
           <div class="item-main">
             <div class="item-title">${escapeHtml(info.label)}: ${escapeHtml(metricValueText(m))}</div>
             <div class="item-sub">${formatDate(m.date)}</div>
@@ -1197,19 +1281,39 @@ function renderDashboard() {
         </div>`;
     }).join("") : '<p class="empty">No readings yet. Add them in the Health Metrics tab.</p>';
 
-  // Recent results (last 5)
-  const recent = [...data.results]
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 5);
+  // Recent results with change analysis vs each test's own history.
+  const analyses = resultAnalyses()
+    .sort((a, b) => b.latest.date.localeCompare(a.latest.date) || a.latest.name.localeCompare(b.latest.name))
+    .slice(0, 8);
   document.getElementById("dash-results").innerHTML =
-    recent.length ? recent.map((r) => `
-      <div class="item-row">
-        <div class="item-main">
-          <div class="item-title">${escapeHtml(testDisplayName(r.name))}: ${escapeHtml(String(r.value))} ${escapeHtml(r.unit)} ${resultStatus(r)}${catBadge(r.category)}</div>
-          <div class="item-sub">${formatDate(r.date)}</div>
-        </div>
-      </div>`).join("") : '<p class="empty">No results yet. Add them in the Test Results tab.</p>';
+    analyses.length ? analyses.map((a) => {
+      const c = analyzeChange(a);
+      const r = a.latest;
+      return `
+        <div class="item-row result-analysis link-row ${c.cls}" data-goto-result="${r.category}" title="Open this test's full history">
+          <div class="item-main">
+            <div class="item-title">${escapeHtml(testDisplayName(r.name))}: ${escapeHtml(String(r.value))} ${escapeHtml(r.unit)} ${resultStatus(r)}${catBadge(r.category)}</div>
+            <div class="item-sub">${c.detail || "No earlier reading to compare"}</div>
+            <div class="item-sub">${formatDate(r.date)} · ${a.count} result${a.count === 1 ? "" : "s"} · personal range ${fmtNum(a.min)}–${fmtNum(a.max)} ${escapeHtml(r.unit)} · avg ${fmtNum(a.avg)}</div>
+            ${c.label ? `<div class="change-flag">${escapeHtml(c.label)}</div>` : ""}
+          </div>
+        </div>`;
+    }).join("") : '<p class="empty">No results yet. Add them in the Test Results tab.</p>';
 }
+
+// Dashboard interactivity: jump to the relevant tab (and drill into a test).
+document.getElementById("tab-dashboard").addEventListener("click", (e) => {
+  const res = e.target.closest("[data-goto-result]");
+  if (res) {
+    resultFilter = res.dataset.gotoResult;
+    resultView = "test";
+    renderResults();
+    activateTab("results");
+    return;
+  }
+  const goto = e.target.closest("[data-goto]");
+  if (goto) activateTab(goto.dataset.goto);
+});
 
 /* =========================================================
    DELETION & CHECKBOX EVENTS (event delegation)
