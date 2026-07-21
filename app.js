@@ -37,6 +37,76 @@ function suggestCategory(testName) {
   return CROHNS_TEST_HINTS.test(testName) ? "crohns" : "general";
 }
 
+// Known lab indexes: full display name plus a short plain-language
+// description. Stored data keeps whatever name was entered (so history
+// groups stay stable); this mapping is display-only. Descriptions are
+// general background, not medical advice.
+const TEST_INFO = [
+  { match: /^(wbc|white blood cells?)\b/i, full: "White Blood Cells (WBC)",
+    desc: "Immune cells that fight infection. Can rise with infection or inflammation, and some medications lower it." },
+  { match: /^(hgb|hb|h(?:a|ae)?emoglobin)\b/i, full: "Hemoglobin (Hgb)",
+    desc: "The oxygen-carrying protein inside red blood cells. Low hemoglobin is what defines anemia." },
+  { match: /^(hct|h(?:a|ae)?ematocrit)\b/i, full: "Hematocrit (Hct)",
+    desc: "The fraction of your blood volume made up of red blood cells." },
+  { match: /^(rbc|red blood cells?)\b/i, full: "Red Blood Cells (RBC)",
+    desc: "The count of red blood cells, which carry oxygen around the body." },
+  { match: /^mcv\b/i, full: "Mean Cell Volume (MCV)",
+    desc: "The average size of your red blood cells. Small cells are typical of iron deficiency or thalassemia trait." },
+  { match: /^mch\b(?!c)/i, full: "Mean Cell Hemoglobin (MCH)",
+    desc: "The average amount of hemoglobin carried by each red blood cell." },
+  { match: /^mchc\b/i, full: "Mean Cell Hemoglobin Concentration (MCHC)",
+    desc: "How concentrated the hemoglobin is inside your red blood cells." },
+  { match: /^rdw\b/i, full: "Red Cell Distribution Width (RDW)",
+    desc: "How much your red blood cells vary in size. Often elevated alongside anemia." },
+  { match: /^(plt|platelets?)\b/i, full: "Platelets (Plt)",
+    desc: "Small cell fragments that clot your blood. They can also rise with active inflammation." },
+  { match: /^(crp|c[- ]?reactive)/i, full: "C-Reactive Protein (CRP)",
+    desc: "A general blood marker of inflammation, commonly used to monitor Crohn's activity." },
+  { match: /^(esr|sed(?:imentation)? rate|erythrocyte sed)/i, full: "Erythrocyte Sedimentation Rate (ESR)",
+    desc: "An older inflammation marker; rises more slowly than CRP." },
+  { match: /calprotectin/i, full: "Fecal Calprotectin",
+    desc: "A stool marker of inflammation in the gut itself — one of the most direct ways to monitor IBD activity." },
+  { match: /infliximab/i, full: "Infliximab Level",
+    desc: "The amount of the biologic medication in your blood, used to confirm the dose is in the effective range." },
+  { match: /ferritin/i, full: "Ferritin",
+    desc: "Your body's iron stores. Helps distinguish iron deficiency from other causes of anemia." },
+  { match: /^iron\b/i, full: "Serum Iron",
+    desc: "The iron circulating in your blood right now (varies day to day more than ferritin)." },
+  { match: /^vitamin b ?12|cobalamin/i, full: "Vitamin B12 (Cobalamin)",
+    desc: "Needed for red blood cells and nerves. Absorbed in the ileum, so it can run low in Crohn's." },
+  { match: /^folate|folic acid/i, full: "Folate (Vitamin B9)",
+    desc: "A B-vitamin needed to make new cells, including red blood cells." },
+  { match: /^vitamin d\b/i, full: "Vitamin D (25-OH)",
+    desc: "Supports bone health and the immune system; commonly low and worth keeping in range." },
+  { match: /^tsh\b/i, full: "Thyroid Stimulating Hormone (TSH)",
+    desc: "The main screening test for thyroid function. High usually means an underactive thyroid." },
+  { match: /^hba1c\b/i, full: "HbA1c (Glycated Hemoglobin)",
+    desc: "Your average blood sugar over roughly the past three months." },
+  { match: /^glucose\b/i, full: "Glucose",
+    desc: "Blood sugar at the moment of the test." },
+  { match: /^hdl\b/i, full: "HDL Cholesterol",
+    desc: "The \"good\" cholesterol — higher is generally better." },
+  { match: /^ldl\b/i, full: "LDL Cholesterol",
+    desc: "The \"bad\" cholesterol — lower is generally better." },
+  { match: /cholesterol/i, full: "Total Cholesterol",
+    desc: "All cholesterol in the blood combined." },
+  { match: /^albumin\b/i, full: "Albumin",
+    desc: "The main blood protein. Can drop with active inflammation or poor absorption." },
+];
+
+function testInfo(name) {
+  const n = String(name || "").trim();
+  for (const t of TEST_INFO) {
+    if (t.match.test(n)) return t;
+  }
+  return null;
+}
+
+function testDisplayName(name) {
+  const info = testInfo(name);
+  return info ? info.full : name;
+}
+
 /* ---------------- Storage ---------------- */
 /* Some embedded browsers block localStorage entirely; fall back to
    in-memory storage and warn so Backup/Restore can bridge sessions. */
@@ -506,7 +576,7 @@ function resultStatus(r) {
   const outLow = r.low != null && r.value < r.low;
   const outHigh = r.high != null && r.value > r.high;
   if (outLow) return '<span class="badge badge-flag">Below range</span>';
-  if (outHigh) return '<span class="badge badge-flag">Above range</span>';
+  if (outHigh) return '<span class="badge badge-above">Above range</span>';
   return '<span class="badge badge-ok">In range</span>';
 }
 
@@ -537,7 +607,7 @@ function resultsDateTable(list) {
           ${sorted.map((r) => `
             <tr>
               <td>${escapeHtml(r.date)}</td>
-              <td>${escapeHtml(r.name)}${catBadge(r.category)}${r.notes ? `<div class="item-sub">${escapeHtml(r.notes)}</div>` : ""}</td>
+              <td>${escapeHtml(testDisplayName(r.name))}${catBadge(r.category)}${r.notes ? `<div class="item-sub">${escapeHtml(r.notes)}</div>` : ""}</td>
               <td>${escapeHtml(String(r.value))} ${escapeHtml(r.unit)}</td>
               <td>${escapeHtml(resultRange(r))}</td>
               <td>${resultStatus(r)}</td>
@@ -666,15 +736,17 @@ function resultsByTest(list) {
   return [...groups.keys()].sort().map((key) => {
     const entries = groups.get(key).slice().sort((a, b) => a.date.localeCompare(b.date));
     const latest = entries[entries.length - 1];
+    const info = testInfo(latest.name);
     return `
       <details class="test-group">
         <summary>
           <span>
-            <span class="item-title">${escapeHtml(latest.name)}</span>${catBadge(latest.category)}
+            <span class="item-title">${escapeHtml(testDisplayName(latest.name))}</span>${catBadge(latest.category)}
             <span class="item-sub"> · ${entries.length} result${entries.length === 1 ? "" : "s"}, latest ${formatDate(latest.date)}</span>
           </span>
           <span class="test-summary-value">${escapeHtml(String(latest.value))} ${escapeHtml(latest.unit)} ${resultStatus(latest)}</span>
         </summary>
+        ${info ? `<p class="test-desc">${escapeHtml(info.desc)}</p>` : ""}
         ${resultChartMode === "trend" ? resultSparkline(entries) : resultBarChart(entries, resultChartMode)}
         ${entries.slice().reverse().map((r) => `
           <div class="item-row">
@@ -987,7 +1059,7 @@ function renderDashboard() {
     recent.length ? recent.map((r) => `
       <div class="item-row">
         <div class="item-main">
-          <div class="item-title">${escapeHtml(r.name)}: ${escapeHtml(String(r.value))} ${escapeHtml(r.unit)} ${resultStatus(r)}${catBadge(r.category)}</div>
+          <div class="item-title">${escapeHtml(testDisplayName(r.name))}: ${escapeHtml(String(r.value))} ${escapeHtml(r.unit)} ${resultStatus(r)}${catBadge(r.category)}</div>
           <div class="item-sub">${formatDate(r.date)}</div>
         </div>
       </div>`).join("") : '<p class="empty">No results yet. Add them in the Test Results tab.</p>';

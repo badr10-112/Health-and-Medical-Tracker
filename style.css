@@ -28,6 +28,8 @@
   --chart-line2: #e67e22;
   --cat-bg: #f3ecfb;
   --cat-text: #7d3c98;
+  --above-bg: #b34700;
+  --above-text: #ffffff;
   --on-accent: #ffffff;
   --radius: 10px;
 }
@@ -52,6 +54,8 @@
     --chart-line2: #f0a35c;
     --cat-bg: #2e2340;
     --cat-text: #c39bd3;
+    --above-bg: #c9560e;
+    --above-text: #ffffff;
     --on-accent: #0c1417;
   }
 }
@@ -75,6 +79,8 @@
   --chart-line2: #e67e22;
   --cat-bg: #f3ecfb;
   --cat-text: #7d3c98;
+  --above-bg: #b34700;
+  --above-text: #ffffff;
   --on-accent: #ffffff;
 }
 
@@ -97,6 +103,8 @@
   --chart-line2: #f0a35c;
   --cat-bg: #2e2340;
   --cat-text: #c39bd3;
+  --above-bg: #c9560e;
+  --above-text: #ffffff;
   --on-accent: #0c1417;
 }
 
@@ -349,6 +357,11 @@ input:focus, select:focus, textarea:focus {
   color: var(--cat-text);
 }
 
+.badge-above {
+  background: var(--above-bg);
+  color: var(--above-text);
+}
+
 /* ============ Filter pills & view toggle ============ */
 .pill-row {
   display: flex;
@@ -424,6 +437,13 @@ input:focus, select:focus, textarea:focus {
 .test-summary-value {
   font-weight: 600;
   margin-left: auto;
+}
+
+.test-desc {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-style: italic;
+  margin: 0.25rem 0 0.5rem;
 }
 
 .spark-wrap {
