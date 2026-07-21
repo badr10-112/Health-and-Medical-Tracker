@@ -1281,23 +1281,26 @@ function renderDashboard() {
         </div>`;
     }).join("") : '<p class="empty">No readings yet. Add them in the Health Metrics tab.</p>';
 
-  // Recent results with change analysis vs each test's own history.
+  // Recent results with change analysis vs each test's own history, shown as
+  // large clickable tiles.
   const analyses = resultAnalyses()
     .sort((a, b) => b.latest.date.localeCompare(a.latest.date) || a.latest.name.localeCompare(b.latest.name))
-    .slice(0, 8);
+    .slice(0, 12);
   document.getElementById("dash-results").innerHTML =
     analyses.length ? analyses.map((a) => {
       const c = analyzeChange(a);
       const r = a.latest;
       return `
-        <div class="item-row result-analysis link-row ${c.cls}" data-goto-result="${r.category}" title="Open this test's full history">
-          <div class="item-main">
-            <div class="item-title">${escapeHtml(testDisplayName(r.name))}: ${escapeHtml(String(r.value))} ${escapeHtml(r.unit)} ${resultStatus(r)}${catBadge(r.category)}</div>
-            <div class="item-sub">${c.detail || "No earlier reading to compare"}</div>
-            <div class="item-sub">${formatDate(r.date)} · ${a.count} result${a.count === 1 ? "" : "s"} · personal range ${fmtNum(a.min)}–${fmtNum(a.max)} ${escapeHtml(r.unit)} · avg ${fmtNum(a.avg)}</div>
-            ${c.label ? `<div class="change-flag">${escapeHtml(c.label)}</div>` : ""}
+        <button type="button" class="result-tile result-analysis ${c.cls}" data-goto-result="${r.category}" title="Open this test's full history">
+          <div class="rt-head">
+            <span class="rt-name">${escapeHtml(testDisplayName(r.name))}</span>
+            ${catBadge(r.category)}
           </div>
-        </div>`;
+          <div class="rt-value">${escapeHtml(String(r.value))} <span class="rt-unit">${escapeHtml(r.unit)}</span> ${resultStatus(r)}</div>
+          <div class="rt-sub">${c.detail || "No earlier reading to compare"}</div>
+          <div class="rt-sub">${formatDate(r.date)} · ${a.count} result${a.count === 1 ? "" : "s"} · personal range ${fmtNum(a.min)}–${fmtNum(a.max)} ${escapeHtml(r.unit)} · avg ${fmtNum(a.avg)}</div>
+          ${c.label ? `<div class="change-flag">${escapeHtml(c.label)}</div>` : ""}
+        </button>`;
     }).join("") : '<p class="empty">No results yet. Add them in the Test Results tab.</p>';
 }
 
