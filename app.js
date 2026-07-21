@@ -176,6 +176,7 @@ function emptyData() {
     supplementLog: {},  // {"YYYY-MM-DD": [supplementId, ...]}
     appointments: [],   // {id, doctor, reason, date, time, location, notes}
     results: [],        // {id, name, date, value, unit, low, high, notes}
+    profile: { bloodType: "", dob: "", heightCm: null }, // shown on the dashboard
   };
 }
 
@@ -186,6 +187,7 @@ function normalizeData(d) {
   for (const r of d.results) r.category = normalizeCategory(r.category);
   for (const a of d.appointments) delete a.category;
   for (const s of d.supplements) delete s.category;
+  if (!d.profile || typeof d.profile !== "object") d.profile = { bloodType: "", dob: "", heightCm: null };
   return d;
 }
 
@@ -204,6 +206,13 @@ function mergeData(incoming) {
   addNew(data.supplements, incoming.supplements);
   for (const [day, ids] of Object.entries(incoming.supplementLog)) {
     data.supplementLog[day] = [...new Set([...(data.supplementLog[day] || []), ...ids])];
+  }
+  // Fill in any profile fields the incoming file provides.
+  if (incoming.profile) {
+    for (const k of ["bloodType", "dob", "heightCm"]) {
+      const v = incoming.profile[k];
+      if (v !== "" && v != null) data.profile[k] = v;
+    }
   }
 }
 
@@ -1057,10 +1066,107 @@ document.getElementById("parse-text-btn").addEventListener("click", () => {
 });
 
 /* =========================================================
+   PROFILE (dashboard)
+   ========================================================= */
+
+// Red-cell transfusion compatibility and rough prevalence for each ABO/Rh
+// type. General reference information, not personal to any user.
+const BLOOD_INFO = {
+  "A+":  { receive: "A+, A−, O+, O−",              donate: "A+, AB+",                         prevalence: "about 30%" },
+  "A−":  { receive: "A−, O−",                       donate: "A+, A−, AB+, AB−",                prevalence: "about 6%" },
+  "B+":  { receive: "B+, B−, O+, O−",              donate: "B+, AB+",                         prevalence: "about 8–9%" },
+  "B−":  { receive: "B−, O−",                       donate: "B+, B−, AB+, AB−",                prevalence: "about 1–2%" },
+  "AB+": { receive: "all types (universal recipient)", donate: "AB+",                         prevalence: "about 3–4%" },
+  "AB−": { receive: "A−, B−, AB−, O−",             donate: "AB+, AB−",                        prevalence: "about 1%" },
+  "O+":  { receive: "O+, O−",                       donate: "O+, A+, B+, AB+",                 prevalence: "about 37–39%" },
+  "O−":  { receive: "O− only",                      donate: "all types (universal red-cell donor)", prevalence: "about 7%" },
+};
+
+function bloodBrief(type) {
+  const info = BLOOD_INFO[type];
+  if (!info) return "";
+  const abo = type.replace(/[+−]/g, "");
+  const rh = type.includes("+") ? "positive" : "negative";
+  const antigens = abo === "O" ? "no A or B antigens" : `${abo.split("").join(" and ")} antigen${abo.length > 1 ? "s" : ""}`;
+  return `Blood group <strong>${escapeHtml(type)}</strong> — ${escapeHtml(antigens)} on the red cells, Rh ${rh}. ` +
+    `You can receive red cells from <strong>${escapeHtml(info.receive)}</strong> and donate to <strong>${escapeHtml(info.donate)}</strong>. ` +
+    `Roughly ${escapeHtml(info.prevalence)} of people share this type. ` +
+    `Your blood group is inherited and fixed for life; it mainly matters for transfusions and pregnancy. ` +
+    `(There is no scientific evidence linking blood type to personality or to any particular diet.)`;
+}
+
+function ageFromDob(dob) {
+  if (!dob) return null;
+  const [y, m, d] = dob.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  const now = new Date();
+  let age = now.getFullYear() - y;
+  if (now.getMonth() + 1 < m || (now.getMonth() + 1 === m && now.getDate() < d)) age--;
+  return age >= 0 && age < 130 ? age : null;
+}
+
+function renderProfile() {
+  const p = data.profile || {};
+  const view = document.getElementById("profile-view");
+  const age = ageFromDob(p.dob);
+  const facts = [];
+  if (p.bloodType) facts.push(["Blood type", escapeHtml(p.bloodType)]);
+  if (age != null) facts.push(["Age", `${age} years`]);
+  if (p.dob) facts.push(["Date of birth", formatDate(p.dob)]);
+  if (p.heightCm) facts.push(["Height", `${escapeHtml(String(p.heightCm))} cm`]);
+
+  if (facts.length === 0) {
+    view.innerHTML = '<p class="empty">No profile yet — press Edit to add your blood type, date of birth, and height.</p>';
+    return;
+  }
+  view.innerHTML = `
+    <div class="profile-facts">
+      ${facts.map(([k, v]) => `<div class="profile-fact"><span class="profile-fact-label">${k}</span><span class="profile-fact-value">${v}</span></div>`).join("")}
+    </div>
+    ${p.bloodType ? `<p class="profile-brief">${bloodBrief(p.bloodType)}</p>` : ""}`;
+}
+
+const profileForm = document.getElementById("profile-form");
+const profileView = document.getElementById("profile-view");
+
+function openProfileEditor() {
+  const p = data.profile || {};
+  document.getElementById("profile-blood").value = p.bloodType || "";
+  document.getElementById("profile-dob").value = p.dob || "";
+  document.getElementById("profile-height").value = p.heightCm ?? "";
+  profileView.hidden = true;
+  document.getElementById("profile-edit-btn").hidden = true;
+  profileForm.hidden = false;
+}
+
+function closeProfileEditor() {
+  profileForm.hidden = true;
+  profileView.hidden = false;
+  document.getElementById("profile-edit-btn").hidden = false;
+}
+
+document.getElementById("profile-edit-btn").addEventListener("click", openProfileEditor);
+document.getElementById("profile-cancel-btn").addEventListener("click", closeProfileEditor);
+
+profileForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const heightRaw = document.getElementById("profile-height").value;
+  data.profile = {
+    bloodType: document.getElementById("profile-blood").value,
+    dob: document.getElementById("profile-dob").value,
+    heightCm: heightRaw === "" ? null : parseFloat(heightRaw),
+  };
+  saveData();
+  closeProfileEditor();
+  renderProfile();
+});
+
+/* =========================================================
    DASHBOARD
    ========================================================= */
 
 function renderDashboard() {
+  renderProfile();
   renderChecklist("dash-supplements");
 
   // Upcoming appointments (next 3)

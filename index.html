@@ -33,6 +33,39 @@
   <main>
     <!-- ============ DASHBOARD ============ -->
     <section id="tab-dashboard" class="tab-panel active">
+      <div class="card profile-card">
+        <div class="profile-head">
+          <h2>👤 My Profile</h2>
+          <button type="button" id="profile-edit-btn" class="btn btn-outline">Edit</button>
+        </div>
+        <div id="profile-view"></div>
+        <form id="profile-form" class="form-grid" hidden>
+          <label>Blood type
+            <select id="profile-blood">
+              <option value="">—</option>
+              <option value="A+">A+</option>
+              <option value="A−">A−</option>
+              <option value="B+">B+</option>
+              <option value="B−">B−</option>
+              <option value="AB+">AB+</option>
+              <option value="AB−">AB−</option>
+              <option value="O+">O+</option>
+              <option value="O−">O−</option>
+            </select>
+          </label>
+          <label>Date of birth
+            <input type="date" id="profile-dob">
+          </label>
+          <label>Height (cm)
+            <input type="number" id="profile-height" step="any" min="0" placeholder="e.g. 176">
+          </label>
+          <div class="span-2 profile-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" id="profile-cancel-btn" class="btn btn-outline">Cancel</button>
+          </div>
+        </form>
+      </div>
+
       <div class="dashboard-grid">
         <div class="card">
           <h2>💊 Today's Supplements</h2>
@@ -50,6 +83,29 @@
           <h2>🧪 Recent Test Results</h2>
           <div id="dash-results"></div>
         </div>
+      </div>
+
+      <div class="card news-card">
+        <h2>📰 Crohn's Research &amp; Updates</h2>
+        <p class="muted">A snapshot of recent clinical research, gathered July 2026. General information, not medical advice — always discuss changes with your gastroenterologist.</p>
+        <ul class="news-list">
+          <li>
+            <strong>Two new IL-23 inhibitors now approved.</strong> Mirikizumab and guselkumab have gained FDA approval for Crohn's in the past year, adding to a growing class of targeted biologics beyond the older anti-TNF drugs like infliximab.
+            <a href="https://news.gastro.org/issues/2026/january/new-crohns-data-spotlight-promising-therapies/" target="_blank" rel="noopener">GI &amp; Hepatology News</a>
+          </li>
+          <li>
+            <strong>A new target — TL1A.</strong> Tulisokibart, an antibody against the TL1A protein, showed meaningful remission rates in a Phase 2 trial, pointing to a treatment mechanism different from current options.
+            <a href="https://www.cedars-sinai.org/newsroom/study-crohns-disease-investigational-treatment-shows-potential-for-achieving-remission/" target="_blank" rel="noopener">Cedars-Sinai</a>
+          </li>
+          <li>
+            <strong>Combination and head-to-head biologic trials.</strong> Studies are testing biologics used together (e.g. vedolizumab with adalimumab or ustekinumab) and comparing risankizumab against ustekinumab, exploring whether combinations control disease better than one drug alone.
+            <a href="https://clinicaltrials.ucsf.edu/inflammatory-bowel-disease" target="_blank" rel="noopener">UCSF IBD Trials</a>
+          </li>
+          <li>
+            <strong>Oral options and a deep pipeline.</strong> Oral upadacitinib is in trials (including in children), and pipeline agents such as icotrokinra, MORF-057 and others are advancing — several oral, which could reduce reliance on infusions.
+            <a href="https://www.openpr.com/news/4512890/crohn-s-disease-pipeline-2026-therapies-under-investigation" target="_blank" rel="noopener">DelveInsight Pipeline 2026</a>
+          </li>
+        </ul>
       </div>
     </section>
 

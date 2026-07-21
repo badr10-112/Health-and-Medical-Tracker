@@ -645,6 +645,78 @@ input:focus, select:focus, textarea:focus {
   color: #fff;
 }
 
+/* ============ Profile card ============ */
+.profile-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.profile-head h2 {
+  margin-bottom: 0;
+}
+
+.profile-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.profile-fact {
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-fact-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+}
+
+.profile-fact-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.profile-brief {
+  font-size: 0.9rem;
+  color: var(--text);
+  background: var(--soon-bg);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  line-height: 1.5;
+}
+
+.profile-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* ============ News card ============ */
+.news-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.news-list li {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  padding-left: 0.9rem;
+  border-left: 3px solid var(--accent);
+}
+
+.news-list a {
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 /* ============ Notices ============ */
 .storage-warning {
   background: var(--warning-bg);
