@@ -824,6 +824,20 @@ input:focus, select:focus, textarea:focus {
   color: var(--muted);
 }
 
+.rt-reason {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--text);
+  background: var(--soon-bg);
+  border-radius: 6px;
+  padding: 0.4rem 0.55rem;
+  margin-top: 0.15rem;
+}
+
+.rt-reason-lead {
+  font-weight: 700;
+}
+
 .result-tile .change-flag { margin-top: 0.1rem; }
 .change-bad .change-flag { color: var(--above-bg); }
 .change-watch .change-flag { color: var(--warning-text); }

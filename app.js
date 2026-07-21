@@ -1235,6 +1235,61 @@ function analyzeChange(a) {
   return { cls, label, detail };
 }
 
+// Best-judgement, general explanations for why a test may sit outside its
+// range. These are plain-language possibilities tuned to this user's context
+// (a thalassemia-trait CBC pattern noted in their reports, infliximab therapy,
+// and a male hormone panel) — background only, never a diagnosis.
+const RESULT_REASONS = [
+  { match: /infliximab antibod|anti[- ]?infliximab|\bati\b/i,
+    above: "Detectable anti-drug antibodies can blunt infliximab's effect — worth confirming with your GI team." },
+  { match: /infliximab/i,
+    above: "Above the 5–10 µg/mL window (supratherapeutic) — usually means the drug is more than covering you rather than causing harm; very high levels can also skew the antibody test.",
+    below: "Below the therapeutic window — the dose or interval may need review, especially if symptoms return." },
+  { match: /^(rbc|red blood)/i,
+    above: "A high red-cell count together with small cells is the classic thalassemia-trait pattern your CBC summary noted — not typically dehydration here." },
+  { match: /^(hgb|hb|h(?:a|ae)?emoglobin)/i,
+    below: "Mildly low hemoglobin; with your small red cells (low MCV) and high RBC this fits thalassemia trait rather than plain iron deficiency — ferritin helps confirm." },
+  { match: /^(hct|h(?:a|ae)?ematocrit)/i,
+    below: "Tracks with your mildly low hemoglobin — part of the same stable red-cell pattern." },
+  { match: /^mcv/i,
+    below: "Small red cells — typical of thalassemia trait or iron deficiency; your ferritin/iron studies tell them apart." },
+  { match: /^(mch)\b(?!c)|mean corpuscular hemoglobin\b(?! conc)/i,
+    below: "Low hemoglobin content per cell, part of the same small-red-cell pattern." },
+  { match: /mchc|hb\.? conc/i,
+    below: "Slightly low concentration, in keeping with the small-cell pattern." },
+  { match: /^rdw/i,
+    above: "Red cells vary more in size than usual, commonly seen alongside this anemia pattern." },
+  { match: /(crp|c[- ]?reactive)/i,
+    above: "A raised inflammation marker — in Crohn's this can signal disease activity, but infection or recent illness also lifts it." },
+  { match: /calprotectin/i,
+    above: "Points to inflammation in the gut itself — a common signal of active IBD." },
+  { match: /shbg|sex hormone binding/i,
+    above: "High SHBG binds more testosterone, lowering the free/active fraction; causes range from genetics to thyroid and liver factors." },
+  { match: /estradiol|oestradiol/i,
+    above: "In men, estradiol is made from testosterone by aromatase; a mild rise often accompanies healthy testosterone, and more body fat can raise it." },
+  { match: /prolactin/i,
+    above: "Can rise with stress, sleep, exercise or some medications; a repeat morning sample is usual before acting." },
+  { match: /lymphocytes/i,
+    above: "A relative lymphocyte rise is often a benign shift in the white-cell differential." },
+  { match: /magnesium/i,
+    below: "Mildly low magnesium can come from low intake or gut losses — relevant with IBD; easy to recheck or supplement." },
+  { match: /ferritin/i,
+    above: "Ferritin climbs with inflammation, so it can read normal/high even when iron stores are low during a flare." },
+  { match: /vitamin d/i,
+    below: "Low vitamin D is very common — limited sun or absorption issues; usually corrected with supplements." },
+  { match: /vitamin b ?12|cobalamin/i,
+    below: "B12 is absorbed in the ileum, which Crohn's can affect — worth keeping an eye on." },
+];
+
+function reasonFor(name, kind) {
+  for (const r of RESULT_REASONS) {
+    if (r.match.test(String(name)) && r[kind]) return r[kind];
+  }
+  return kind === "above"
+    ? "Above the lab's reference range — worth reviewing the trend with your doctor."
+    : "Below the lab's reference range — worth reviewing the trend with your doctor.";
+}
+
 function renderDashboard() {
   renderProfile();
   renderChecklist("dash-supplements");
@@ -1293,6 +1348,10 @@ function renderDashboard() {
     analyses.length ? analyses.map((a) => {
       const c = analyzeChange(a);
       const r = a.latest;
+      const kind = statusKind(r);
+      const reason = (kind === "above" || kind === "below")
+        ? `<div class="rt-reason">💡 <span class="rt-reason-lead">Likely reason:</span> ${escapeHtml(reasonFor(r.name, kind))}</div>`
+        : "";
       return `
         <button type="button" class="result-tile result-analysis ${c.cls}" data-goto-result="${r.category}" title="Open this test's full history">
           <div class="rt-head">
@@ -1303,6 +1362,7 @@ function renderDashboard() {
           <div class="rt-sub">${c.detail || "No earlier reading to compare"}</div>
           <div class="rt-sub">${formatDate(r.date)} · ${a.count} result${a.count === 1 ? "" : "s"} · personal range ${fmtNum(a.min)}–${fmtNum(a.max)} ${escapeHtml(r.unit)} · avg ${fmtNum(a.avg)}</div>
           ${c.label ? `<div class="change-flag">${escapeHtml(c.label)}</div>` : ""}
+          ${reason}
         </button>`;
     }).join("") : '<p class="empty">No results yet. Add them in the Test Results tab.</p>';
 }
