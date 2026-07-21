@@ -91,7 +91,7 @@ const TEST_INFO = [
   { match: /infliximab antibod|anti[- ]?infliximab|\bati\b/i, full: "Infliximab Antibodies (ATI)",
     desc: "Antibodies the immune system can form against infliximab. Staying negative (below the assay cutoff) means the drug isn't being neutralised." },
   { match: /infliximab/i, full: "Infliximab Level",
-    desc: "The infliximab trough level in your blood. A common maintenance target for IBD is roughly 3–7 µg/mL." },
+    desc: "The infliximab trough level in your blood. Cleveland Clinic's therapeutic maintenance range is 5–10 µg/mL (levels above 25 can falsely lower the antibody reading)." },
   { match: /free.*testosterone|testosterone.*free/i, full: "Free Testosterone",
     desc: "The metabolically active fraction of testosterone that isn't bound to proteins." },
   { match: /testosterone/i, full: "Total Testosterone",
@@ -191,19 +191,22 @@ function normalizeData(d) {
   return d;
 }
 
-// Add another dataset's entries to the current one. Entries with an id
-// we already have are skipped, so merging the same file twice is safe.
+// Add another dataset's entries to the current one. Entries with an id we
+// already have are updated in place (so re-importing a corrected file
+// applies the corrections); new ids are appended. Merging the same file
+// twice is therefore safe and never duplicates.
 function mergeData(incoming) {
-  const addNew = (target, source) => {
-    const ids = new Set(target.map((x) => x.id));
+  const upsert = (target, source) => {
+    const idx = new Map(target.map((x, i) => [x.id, i]));
     for (const item of source) {
-      if (!ids.has(item.id)) target.push(item);
+      if (idx.has(item.id)) target[idx.get(item.id)] = item;
+      else { idx.set(item.id, target.length); target.push(item); }
     }
   };
-  addNew(data.metrics, incoming.metrics);
-  addNew(data.results, incoming.results);
-  addNew(data.appointments, incoming.appointments);
-  addNew(data.supplements, incoming.supplements);
+  upsert(data.metrics, incoming.metrics);
+  upsert(data.results, incoming.results);
+  upsert(data.appointments, incoming.appointments);
+  upsert(data.supplements, incoming.supplements);
   for (const [day, ids] of Object.entries(incoming.supplementLog)) {
     data.supplementLog[day] = [...new Set([...(data.supplementLog[day] || []), ...ids])];
   }
