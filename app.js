@@ -16,25 +16,47 @@ const METRIC_INFO = {
   steps:          { label: "Steps",          unit: "steps" },
 };
 
-// The two "sides" of the user's medical life. Everything defaults to
-// general; results, appointments and supplements can be tagged as Crohn's.
-const CATEGORY_INFO = {
-  general: { label: "General Health" },
-  crohns:  { label: "Crohn’s" },
-};
+// Test results are organised by the lab report they come from. Each report
+// type is a tab on the Test Results screen. "general" is the default for
+// anything that doesn't match a more specific report.
+const CATEGORIES = [
+  { id: "infliximab",   label: "Post Infliximab Infusion Blood Test", short: "Post-Infliximab" },
+  { id: "crp",          label: "CRP",                                  short: "CRP" },
+  { id: "testosterone", label: "Testosterone",                         short: "Testosterone" },
+  { id: "general",      label: "General Blood Test",                   short: "General" },
+];
+const CATEGORY_LABEL = Object.fromEntries(CATEGORIES.map((c) => [c.id, c.label]));
+const CATEGORY_SHORT = Object.fromEntries(CATEGORIES.map((c) => [c.id, c.short]));
+const DEFAULT_CATEGORY = "general";
 
-function catBadge(category) {
-  return category === "crohns" ? ' <span class="badge badge-cat">Crohn’s</span>' : "";
+function normalizeCategory(c) {
+  if (CATEGORY_LABEL[c]) return c;
+  if (c === "crohns") return "infliximab"; // legacy value from an earlier version
+  return DEFAULT_CATEGORY;
 }
 
-// Blood counts, inflammation markers, and IBD medication levels are
-// suggested as Crohn's; everything else (vitamins, minerals, hormones, …)
-// defaults to General Health. Suggestions only — the user can always
-// change the category before saving.
-const CROHNS_TEST_HINTS = /\b(crp|c[- ]?reactive|esr|sedimentation|calprotectin|f(?:a|ae)?ecal|lactoferrin|infliximab|adalimumab|ustekinumab|vedolizumab|risankizumab|azathioprine|mercaptopurine|thiopurine|6[- ]?tgn?|methotrexate|rbc|red blood|wbc|white blood|h(?:a|ae)?emoglobin|h(?:a|ae)?ematocrit|platelets?|mcv|mchc?|rdw|neutrophils?|lymphocytes?|monocytes?|eosinophils?|basophils?|albumin)\b/i;
+// Shows which report a result belongs to. The default "general" report is
+// left unbadged to keep rows quiet.
+function catBadge(category) {
+  const cat = normalizeCategory(category);
+  return cat === "general" ? "" : ` <span class="badge badge-cat">${escapeHtml(CATEGORY_SHORT[cat])}</span>`;
+}
 
+// Options markup for a category <select>, with one value pre-selected.
+function categoryOptions(selected) {
+  return CATEGORIES.map((c) =>
+    `<option value="${c.id}" ${c.id === selected ? "selected" : ""}>${escapeHtml(c.label)}</option>`
+  ).join("");
+}
+
+// Suggests which report a test belongs to from its name. Suggestions only —
+// the user can always change the category before saving.
 function suggestCategory(testName) {
-  return CROHNS_TEST_HINTS.test(testName) ? "crohns" : "general";
+  const n = String(testName || "").toLowerCase();
+  if (/\b(crp|c[- ]?reactive)\b/.test(n)) return "crp";
+  if (/\b(testosterone|shbg|free androgen|bioavailable|lh|fsh|prolactin|oestradiol|estradiol)\b/.test(n)) return "testosterone";
+  if (/\b(wbc|white blood|hgb|hb|h(?:a|ae)?emoglobin|hct|h(?:a|ae)?ematocrit|rbc|red blood|mcv|mch|mchc|rdw|plt|platelets?|neutrophils?|lymphocytes?|monocytes?|eosinophils?|basophils?)\b/.test(n)) return "infliximab";
+  return "general";
 }
 
 // Known lab indexes: full display name plus a short plain-language
@@ -61,19 +83,23 @@ const TEST_INFO = [
   { match: /^(plt|platelets?)\b/i, full: "Platelets (Plt)",
     desc: "Small cell fragments that clot your blood. They can also rise with active inflammation." },
   { match: /^(crp|c[- ]?reactive)/i, full: "C-Reactive Protein (CRP)",
-    desc: "A general blood marker of inflammation, commonly used to monitor Crohn's activity." },
+    desc: "A general blood marker of inflammation, commonly used to monitor inflammatory bowel disease activity." },
   { match: /^(esr|sed(?:imentation)? rate|erythrocyte sed)/i, full: "Erythrocyte Sedimentation Rate (ESR)",
     desc: "An older inflammation marker; rises more slowly than CRP." },
   { match: /calprotectin/i, full: "Fecal Calprotectin",
     desc: "A stool marker of inflammation in the gut itself — one of the most direct ways to monitor IBD activity." },
   { match: /infliximab/i, full: "Infliximab Level",
     desc: "The amount of the biologic medication in your blood, used to confirm the dose is in the effective range." },
+  { match: /^(lh|luteinizing)/i, full: "Luteinizing Hormone (LH)",
+    desc: "A pituitary hormone that signals the testes to make testosterone." },
+  { match: /^(fsh|follicle)/i, full: "Follicle Stimulating Hormone (FSH)",
+    desc: "A pituitary hormone involved in sperm production and reproductive function." },
   { match: /ferritin/i, full: "Ferritin",
     desc: "Your body's iron stores. Helps distinguish iron deficiency from other causes of anemia." },
   { match: /^iron\b/i, full: "Serum Iron",
     desc: "The iron circulating in your blood right now (varies day to day more than ferritin)." },
   { match: /^vitamin b ?12|cobalamin/i, full: "Vitamin B12 (Cobalamin)",
-    desc: "Needed for red blood cells and nerves. Absorbed in the ileum, so it can run low in Crohn's." },
+    desc: "Needed for red blood cells and nerves. Absorbed in the ileum, so it can run low with inflammatory bowel disease." },
   { match: /^folate|folic acid/i, full: "Folate (Vitamin B9)",
     desc: "A B-vitamin needed to make new cells, including red blood cells." },
   { match: /^vitamin d\b/i, full: "Vitamin D (25-OH)",
@@ -139,13 +165,13 @@ function emptyData() {
   };
 }
 
-// Entries saved before categories existed (or edited by hand) get "general".
+// Results carry a report-type category; older data (or hand-edits) are
+// mapped onto the current set. Appointments and supplements no longer use
+// categories, so any legacy value there is dropped.
 function normalizeData(d) {
-  for (const list of [d.results, d.appointments, d.supplements]) {
-    for (const item of list) {
-      item.category = item.category === "crohns" ? "crohns" : "general";
-    }
-  }
+  for (const r of d.results) r.category = normalizeCategory(r.category);
+  for (const a of d.appointments) delete a.category;
+  for (const s of d.supplements) delete s.category;
   return d;
 }
 
@@ -423,7 +449,6 @@ supplementForm.addEventListener("submit", (e) => {
     name: document.getElementById("supp-name").value.trim(),
     dose: document.getElementById("supp-dose").value.trim(),
     time: document.getElementById("supp-time").value,
-    category: document.getElementById("supp-category").value,
     notes: document.getElementById("supp-notes").value.trim(),
   });
   saveData();
@@ -444,7 +469,7 @@ function renderSupplementList() {
   el.innerHTML = data.supplements.map((s) => `
     <div class="item-row">
       <div class="item-main">
-        <div class="item-title">${escapeHtml(s.name)}${catBadge(s.category)}</div>
+        <div class="item-title">${escapeHtml(s.name)}</div>
         <div class="item-sub">${supplementSubtitle(s)}</div>
       </div>
       <button class="btn-delete" data-delete-supplement="${s.id}">Delete</button>
@@ -496,7 +521,6 @@ appointmentForm.addEventListener("submit", (e) => {
     date: document.getElementById("appt-date").value,
     time: document.getElementById("appt-time").value,
     location: document.getElementById("appt-location").value.trim(),
-    category: document.getElementById("appt-category").value,
     notes: document.getElementById("appt-notes").value.trim(),
   });
   saveData();
@@ -520,7 +544,7 @@ function appointmentRow(a, showSoonBadge) {
   return `
     <div class="item-row">
       <div class="item-main">
-        <div class="item-title">${escapeHtml(a.doctor)}${catBadge(a.category)}${soon}</div>
+        <div class="item-title">${escapeHtml(a.doctor)}${soon}</div>
         <div class="item-sub">${sub}</div>
       </div>
       <button class="btn-delete" data-delete-appointment="${a.id}">Delete</button>
@@ -766,19 +790,24 @@ function renderResults() {
     el.innerHTML = '<p class="empty">No test results yet — add one above.</p>';
     return;
   }
-  const counts = { all: data.results.length, crohns: 0, general: 0 };
-  for (const r of data.results) counts[r.category === "crohns" ? "crohns" : "general"]++;
+  const counts = { all: data.results.length };
+  for (const c of CATEGORIES) counts[c.id] = 0;
+  for (const r of data.results) counts[normalizeCategory(r.category)]++;
+  if (resultFilter !== "all" && !CATEGORY_LABEL[resultFilter]) resultFilter = "all";
   const filtered = resultFilter === "all"
     ? data.results
-    : data.results.filter((r) => r.category === resultFilter);
+    : data.results.filter((r) => normalizeCategory(r.category) === resultFilter);
 
+  const tabs = [{ id: "all", label: "All" }, ...CATEGORIES];
   const pills = `
-    <div class="pill-row">
-      ${["all", "crohns", "general"].map((f) => `
-        <button type="button" class="pill ${resultFilter === f ? "active" : ""}" data-result-filter="${f}">
-          ${f === "all" ? "All" : CATEGORY_INFO[f].label} (${counts[f]})
+    <div class="pill-row report-tabs">
+      ${tabs.map((t) => `
+        <button type="button" class="pill ${resultFilter === t.id ? "active" : ""}" data-result-filter="${t.id}">
+          ${escapeHtml(t.label)} (${counts[t.id]})
         </button>`).join("")}
-      <span class="pill-spacer"></span>
+    </div>
+    <div class="pill-row">
+      <span class="item-sub">View:</span>
       <button type="button" class="pill ${resultView === "date" ? "active" : ""}" data-result-view="date">By date</button>
       <button type="button" class="pill ${resultView === "test" ? "active" : ""}" data-result-view="test">By test</button>
     </div>`;
@@ -792,13 +821,13 @@ function renderResults() {
     </div>` : "";
 
   const content = filtered.length === 0
-    ? `<p class="empty">No ${resultFilter === "crohns" ? "Crohn’s" : "General Health"} results yet.</p>`
+    ? `<p class="empty">No results in ${resultFilter === "all" ? "any report" : CATEGORY_LABEL[resultFilter]} yet.</p>`
     : resultView === "date" ? resultsDateTable(filtered) : resultsByTest(filtered);
 
   const deleteShown = filtered.length > 0 ? `
     <p class="delete-shown-row">
       <button type="button" class="btn-delete" data-delete-shown="1">
-        🗑 Delete all ${filtered.length} result${filtered.length === 1 ? "" : "s"} shown${resultFilter === "all" ? "" : ` (${CATEGORY_INFO[resultFilter].label})`}
+        🗑 Delete all ${filtered.length} result${filtered.length === 1 ? "" : "s"} shown${resultFilter === "all" ? "" : ` (${escapeHtml(CATEGORY_LABEL[resultFilter])})`}
       </button>
     </p>` : "";
 
@@ -921,10 +950,7 @@ function renderImportPreview(candidates) {
               <td><input type="number" step="any" class="import-low" data-idx="${i}" value="${c.low ?? ""}"></td>
               <td><input type="number" step="any" class="import-high" data-idx="${i}" value="${c.high ?? ""}"></td>
               <td>
-                <select class="import-cat" data-idx="${i}">
-                  <option value="general" ${cat === "general" ? "selected" : ""}>General</option>
-                  <option value="crohns" ${cat === "crohns" ? "selected" : ""}>Crohn’s</option>
-                </select>
+                <select class="import-cat" data-idx="${i}">${categoryOptions(cat)}</select>
               </td>
             </tr>`;
           }).join("")}
@@ -1088,12 +1114,12 @@ document.body.addEventListener("click", async (e) => {
   } else if (t.dataset.deleteShown) {
     const shown = resultFilter === "all"
       ? data.results
-      : data.results.filter((r) => r.category === resultFilter);
-    const label = resultFilter === "all" ? "" : ` ${CATEGORY_INFO[resultFilter].label}`;
+      : data.results.filter((r) => normalizeCategory(r.category) === resultFilter);
+    const label = resultFilter === "all" ? "" : ` ${CATEGORY_LABEL[resultFilter]}`;
     if (!(await appConfirm(`Delete ALL ${shown.length}${label} test results currently shown? This cannot be undone.`, "Delete all"))) return;
     data.results = resultFilter === "all"
       ? []
-      : data.results.filter((r) => r.category !== resultFilter);
+      : data.results.filter((r) => normalizeCategory(r.category) !== resultFilter);
   } else {
     return;
   }

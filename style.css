@@ -397,6 +397,18 @@ input:focus, select:focus, textarea:focus {
   flex: 1;
 }
 
+.report-tabs {
+  gap: 0.35rem;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 0.6rem;
+}
+
+.report-tabs .pill.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
 /* ============ By-test groups ============ */
 .test-group {
   border: 1px solid var(--border);

@@ -20,10 +20,10 @@ device.
 - **Test Results** — record lab results with units and the normal range from
   your lab report. Anything outside the range is automatically flagged
   "Above range" or "Below range".
-- **Two medical "lives"** — results, appointments, and supplements can be
-  tagged **Crohn's** or **General Health**. Filter pills on the Test Results
-  tab switch between them in one click, and Crohn's items carry a badge
-  everywhere, including the dashboard.
+- **Report-type tabs** — each test result belongs to a lab report:
+  **Post Infliximab Infusion Blood Test**, **CRP**, **Testosterone**, or
+  **General Blood Test**. Tabs on the Test Results screen switch between
+  them in one click, each with a live count.
 - **Per-test trends** — the "By test" view groups results by test (RBC,
   CRP, Infliximab level, Vitamin D, …), each with its full history and a
   trend chart drawn against the test's normal range.

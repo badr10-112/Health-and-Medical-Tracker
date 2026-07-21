@@ -127,13 +127,7 @@
               <option value="As needed">As needed</option>
             </select>
           </label>
-          <label>Category
-            <select id="supp-category">
-              <option value="general">General Health</option>
-              <option value="crohns">Crohn’s</option>
-            </select>
-          </label>
-          <label class="span-2">Notes (optional)
+          <label>Notes (optional)
             <input type="text" id="supp-notes" placeholder="e.g. take with fatty food">
           </label>
           <button type="submit" class="btn btn-primary span-2">Add Supplement</button>
@@ -171,12 +165,6 @@
           </label>
           <label>Location
             <input type="text" id="appt-location" placeholder="e.g. City Hospital, Room 204">
-          </label>
-          <label>Category
-            <select id="appt-category">
-              <option value="general">General Health</option>
-              <option value="crohns">Crohn’s</option>
-            </select>
           </label>
           <label class="span-2">Notes (optional)
             <input type="text" id="appt-notes" placeholder="e.g. bring previous X-ray">
@@ -240,10 +228,12 @@
           <label>Normal range – high (optional)
             <input type="number" id="result-high" step="any">
           </label>
-          <label>Category
+          <label>Report
             <select id="result-category">
-              <option value="general">General Health</option>
-              <option value="crohns">Crohn’s</option>
+              <option value="general">General Blood Test</option>
+              <option value="infliximab">Post Infliximab Infusion Blood Test</option>
+              <option value="crp">CRP</option>
+              <option value="testosterone">Testosterone</option>
             </select>
           </label>
           <label>Notes (optional)
