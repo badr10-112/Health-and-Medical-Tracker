@@ -22,6 +22,7 @@ const METRIC_INFO = {
 const CATEGORIES = [
   { id: "infliximab",   label: "Post Infliximab Infusion Blood Test", short: "Post-Infliximab" },
   { id: "crp",          label: "CRP",                                  short: "CRP" },
+  { id: "renal",        label: "Renal Function Panel",                 short: "Renal" },
   { id: "testosterone", label: "Testosterone",                         short: "Testosterone" },
   { id: "general",      label: "General Blood Test",                   short: "General" },
 ];
@@ -54,6 +55,7 @@ function categoryOptions(selected) {
 function suggestCategory(testName) {
   const n = String(testName || "").toLowerCase();
   if (/\b(crp|c[- ]?reactive)\b/.test(n)) return "crp";
+  if (/\b(sodium|potassium|chloride|anion gap|bicarbonate|co2)\b/.test(n)) return "renal";
   if (/\b(testosterone|shbg|free androgen|bioavailable|lh|fsh|prolactin|oestradiol|estradiol)\b/.test(n)) return "testosterone";
   if (/\b(wbc|white blood|hgb|hb|h(?:a|ae)?emoglobin|hct|h(?:a|ae)?ematocrit|rbc|red blood|mcv|mch|mchc|rdw|plt|platelets?|neutrophils?|lymphocytes?|monocytes?|eosinophils?|basophils?)\b/.test(n)) return "infliximab";
   return "general";
@@ -132,6 +134,24 @@ const TEST_INFO = [
     desc: "All cholesterol in the blood combined." },
   { match: /^albumin\b/i, full: "Albumin",
     desc: "The main blood protein. Can drop with active inflammation or poor absorption." },
+  { match: /^sodium/i, full: "Sodium (Na)",
+    desc: "A key electrolyte controlling fluid balance; the kidneys regulate it tightly." },
+  { match: /^potassium/i, full: "Potassium (K)",
+    desc: "An electrolyte vital for heart and muscle function; kidneys keep it in a narrow range." },
+  { match: /^chloride/i, full: "Chloride (Cl)",
+    desc: "An electrolyte that moves with sodium and helps maintain acid-base balance." },
+  { match: /^(co2|bicarbonate|hco3)/i, full: "Bicarbonate (CO₂)",
+    desc: "Reflects the blood's acid-base balance, managed by the kidneys and lungs." },
+  { match: /anion gap/i, full: "Anion Gap",
+    desc: "A calculated check on acid-base balance derived from your electrolytes." },
+  { match: /^urea/i, full: "Urea",
+    desc: "A waste product filtered by the kidneys; rises with reduced kidney function or dehydration." },
+  { match: /^creatinine/i, full: "Creatinine",
+    desc: "A muscle waste product cleared by the kidneys — the main everyday marker of kidney function." },
+  { match: /^phosph/i, full: "Phosphorus",
+    desc: "A mineral balanced by the kidneys; works with calcium for bone health." },
+  { match: /^calcium/i, full: "Calcium",
+    desc: "A mineral important for bones, nerves and muscle, partly regulated by the kidneys." },
 ];
 
 function testInfo(name) {
