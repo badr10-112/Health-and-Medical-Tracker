@@ -1340,9 +1340,14 @@ function renderDashboard() {
     }).join("") : '<p class="empty">No readings yet. Add them in the Health Metrics tab.</p>';
 
   // Recent results with change analysis vs each test's own history, shown as
-  // large clickable tiles.
+  // large clickable tiles. Out-of-range results are surfaced first (so their
+  // reasons are visible), then most recent, then alphabetical.
+  const outOfRange = (a) => (["above", "below"].includes(statusKind(a.latest)) ? 0 : 1);
   const analyses = resultAnalyses()
-    .sort((a, b) => b.latest.date.localeCompare(a.latest.date) || a.latest.name.localeCompare(b.latest.name))
+    .sort((a, b) =>
+      outOfRange(a) - outOfRange(b) ||
+      b.latest.date.localeCompare(a.latest.date) ||
+      a.latest.name.localeCompare(b.latest.name))
     .slice(0, 12);
   document.getElementById("dash-results").innerHTML =
     analyses.length ? analyses.map((a) => {
