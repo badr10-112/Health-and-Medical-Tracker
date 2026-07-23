@@ -212,6 +212,7 @@ function emptyData() {
     profile: { bloodType: "", dob: "", heightCm: null }, // shown on the dashboard
     treatment: { infliximabDoseMg: null, infliximabDate: "", infliximabRoute: "IV infusion" },
     todos: [],          // {id, name, lastDone, everyValue, everyUnit}
+    seedVersion: 0,     // last applied version of any embedded dataset
   };
 }
 
@@ -225,7 +226,21 @@ function normalizeData(d) {
   if (!d.profile || typeof d.profile !== "object") d.profile = { bloodType: "", dob: "", heightCm: null };
   if (!d.treatment || typeof d.treatment !== "object") d.treatment = { infliximabDoseMg: null, infliximabDate: "", infliximabRoute: "IV infusion" };
   if (!Array.isArray(d.todos)) d.todos = [];
+  if (typeof d.seedVersion !== "number") d.seedVersion = 0;
   return d;
+}
+
+// A hosted build may define EMBEDDED_DATA to pre-populate the app. It is
+// merged once per version into whatever is already saved (so it fills a
+// fresh device, picks up new data on later updates, and never fights the
+// user's own edits or deletions on the same version). This code carries no
+// personal data itself — the dataset lives only in the hosted page.
+function applyEmbeddedData() {
+  if (typeof EMBEDDED_DATA === "undefined" || !EMBEDDED_DATA) return;
+  if ((data.seedVersion || 0) >= EMBEDDED_DATA.version) return;
+  mergeData(normalizeData(Object.assign(emptyData(), EMBEDDED_DATA.data)));
+  data.seedVersion = EMBEDDED_DATA.version;
+  saveData();
 }
 
 // Add another dataset's entries to the current one. Entries with an id we
@@ -1731,6 +1746,8 @@ function renderAll() {
   renderResults();
   renderTodos();
 }
+
+applyEmbeddedData();
 
 if (!storageAvailable) {
   document.getElementById("storage-warning").hidden = false;
