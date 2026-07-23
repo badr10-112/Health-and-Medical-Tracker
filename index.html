@@ -10,6 +10,7 @@
   <header class="app-header">
     <h1>🩺 My Health Tracker</h1>
     <div class="header-actions">
+      <button id="save-btn" class="btn btn-secondary" title="Save your work on this device">💾 Save</button>
       <button id="export-btn" class="btn btn-secondary" title="Download a backup of all your data">⬇ Backup</button>
       <label class="btn btn-secondary" title="Restore data from a backup file">
         ⬆ Restore <input type="file" id="import-input" accept=".json" hidden>
@@ -42,26 +43,8 @@
       <div id="dash-stats" class="stat-row"></div>
 
       <div class="card infliximab-card" id="infliximab-card" hidden>
-        <div class="profile-head">
-          <h2>💉 Infliximab Therapy</h2>
-          <button type="button" id="ifx-edit-btn" class="btn btn-outline">Edit dose</button>
-        </div>
+        <h2>💉 Infliximab Therapy</h2>
         <div id="infliximab-view"></div>
-        <form id="ifx-form" class="form-grid" hidden>
-          <label>Dose (mg)
-            <input type="number" id="ifx-dose" step="any" min="0" placeholder="e.g. 800">
-          </label>
-          <label>Date given
-            <input type="date" id="ifx-date">
-          </label>
-          <label class="span-2">Route
-            <input type="text" id="ifx-route" placeholder="e.g. IV infusion">
-          </label>
-          <div class="span-2 profile-actions">
-            <button type="submit" class="btn btn-primary">Save</button>
-            <button type="button" id="ifx-cancel-btn" class="btn btn-outline">Cancel</button>
-          </div>
-        </form>
       </div>
 
       <div class="card featured-card">
@@ -86,6 +69,18 @@
         <div class="card">
           <h2>🗓️ Maintenance Due</h2>
           <div id="dash-todos"></div>
+          <form id="dash-todo-form" class="todo-quickadd">
+            <input type="text" id="dash-todo-name" required placeholder="New task (e.g. Eye exam)">
+            <input type="date" id="dash-todo-last" required title="Last done">
+            <input type="number" id="dash-todo-every" min="1" step="1" required placeholder="every" value="6">
+            <select id="dash-todo-unit">
+              <option value="days">days</option>
+              <option value="weeks">weeks</option>
+              <option value="months" selected>months</option>
+              <option value="years">years</option>
+            </select>
+            <button type="submit" class="btn btn-primary btn-sm">Add</button>
+          </form>
         </div>
       </div>
 
@@ -406,6 +401,8 @@
       </div>
     </div>
   </div>
+
+  <div id="toast" class="toast"></div>
 
   <footer class="app-footer">
     <p>Your data is stored only in this browser on this device. Use <strong>Backup</strong> regularly to save a copy.</p>

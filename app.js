@@ -1402,35 +1402,6 @@ function renderInfliximab() {
     <p class="muted">General interpretation of your own data — not medical advice.</p>`;
 }
 
-const ifxForm = document.getElementById("ifx-form");
-document.getElementById("ifx-edit-btn").addEventListener("click", () => {
-  const t = data.treatment || {};
-  document.getElementById("ifx-dose").value = t.infliximabDoseMg ?? "";
-  document.getElementById("ifx-date").value = t.infliximabDate || "";
-  document.getElementById("ifx-route").value = t.infliximabRoute || "";
-  document.getElementById("infliximab-view").hidden = true;
-  document.getElementById("ifx-edit-btn").hidden = true;
-  ifxForm.hidden = false;
-});
-function closeIfxEditor() {
-  ifxForm.hidden = true;
-  document.getElementById("infliximab-view").hidden = false;
-  document.getElementById("ifx-edit-btn").hidden = false;
-}
-document.getElementById("ifx-cancel-btn").addEventListener("click", closeIfxEditor);
-ifxForm.addEventListener("submit", (e) => {
-  e.preventDefault();
-  const dose = document.getElementById("ifx-dose").value;
-  data.treatment = {
-    infliximabDoseMg: dose === "" ? null : parseFloat(dose),
-    infliximabDate: document.getElementById("ifx-date").value,
-    infliximabRoute: document.getElementById("ifx-route").value.trim(),
-  };
-  saveData();
-  closeIfxEditor();
-  renderInfliximab();
-});
-
 /* ---------- Maintenance to-dos ---------- */
 
 const UNIT_DAYS = { days: 1, weeks: 7, months: 30, years: 365 };
@@ -1501,19 +1472,43 @@ function renderDashTodos() {
     </div>`).join("");
 }
 
-document.getElementById("todo-form").addEventListener("submit", (e) => {
-  e.preventDefault();
+function addTodo(name, lastDone, everyValue, everyUnit) {
+  if (!name || !name.trim() || !lastDone) return;
   data.todos.push({
     id: uid(),
-    name: document.getElementById("todo-name").value.trim(),
-    lastDone: document.getElementById("todo-last").value,
-    everyValue: parseInt(document.getElementById("todo-every").value, 10) || 1,
-    everyUnit: document.getElementById("todo-unit").value,
+    name: name.trim(),
+    lastDone,
+    everyValue: parseInt(everyValue, 10) || 1,
+    everyUnit: everyUnit || "months",
   });
   saveData();
-  e.target.reset();
   renderTodos();
   renderDashTodos();
+  showToast("✓ To-do added");
+}
+
+document.getElementById("todo-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  addTodo(
+    document.getElementById("todo-name").value,
+    document.getElementById("todo-last").value,
+    document.getElementById("todo-every").value,
+    document.getElementById("todo-unit").value
+  );
+  e.target.reset();
+});
+
+// Quick-add the same to-do straight from the dashboard.
+document.getElementById("dash-todo-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  addTodo(
+    document.getElementById("dash-todo-name").value,
+    document.getElementById("dash-todo-last").value,
+    document.getElementById("dash-todo-every").value,
+    document.getElementById("dash-todo-unit").value
+  );
+  e.target.reset();
+  document.getElementById("dash-todo-every").value = "6";
 });
 
 document.body.addEventListener("click", async (e) => {
@@ -1688,8 +1683,28 @@ document.getElementById("result-name").addEventListener("input", (e) => {
 });
 
 /* =========================================================
-   BACKUP / RESTORE
+   SAVE / BACKUP / RESTORE
    ========================================================= */
+
+// Brief confirmation message at the bottom of the screen.
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 2400);
+}
+
+// Your work is already saved automatically after every change; this button
+// re-saves the current state and confirms it, so it's there next time you
+// open this browser.
+document.getElementById("save-btn").addEventListener("click", () => {
+  saveData();
+  showToast(storageAvailable
+    ? "✓ Saved on this browser"
+    : "⚠ This browser blocks saving — use ⬇ Backup instead");
+});
 
 document.getElementById("export-btn").addEventListener("click", () => {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
