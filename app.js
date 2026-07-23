@@ -177,6 +177,8 @@ function emptyData() {
     appointments: [],   // {id, doctor, reason, date, time, location, notes}
     results: [],        // {id, name, date, value, unit, low, high, notes}
     profile: { bloodType: "", dob: "", heightCm: null }, // shown on the dashboard
+    treatment: { infliximabDoseMg: null, infliximabDate: "", infliximabRoute: "IV infusion" },
+    todos: [],          // {id, name, lastDone, everyValue, everyUnit}
   };
 }
 
@@ -188,6 +190,8 @@ function normalizeData(d) {
   for (const a of d.appointments) delete a.category;
   for (const s of d.supplements) delete s.category;
   if (!d.profile || typeof d.profile !== "object") d.profile = { bloodType: "", dob: "", heightCm: null };
+  if (!d.treatment || typeof d.treatment !== "object") d.treatment = { infliximabDoseMg: null, infliximabDate: "", infliximabRoute: "IV infusion" };
+  if (!Array.isArray(d.todos)) d.todos = [];
   return d;
 }
 
@@ -207,6 +211,7 @@ function mergeData(incoming) {
   upsert(data.results, incoming.results);
   upsert(data.appointments, incoming.appointments);
   upsert(data.supplements, incoming.supplements);
+  upsert(data.todos, incoming.todos || []);
   for (const [day, ids] of Object.entries(incoming.supplementLog)) {
     data.supplementLog[day] = [...new Set([...(data.supplementLog[day] || []), ...ids])];
   }
@@ -215,6 +220,13 @@ function mergeData(incoming) {
     for (const k of ["bloodType", "dob", "heightCm"]) {
       const v = incoming.profile[k];
       if (v !== "" && v != null) data.profile[k] = v;
+    }
+  }
+  // Fill in any treatment fields the incoming file provides.
+  if (incoming.treatment) {
+    for (const k of ["infliximabDoseMg", "infliximabDate", "infliximabRoute"]) {
+      const v = incoming.treatment[k];
+      if (v !== "" && v != null) data.treatment[k] = v;
     }
   }
 }
@@ -1290,8 +1302,191 @@ function reasonFor(name, kind) {
     : "Below the lab's reference range — worth reviewing the trend with your doctor.";
 }
 
+/* ---------- Infliximab therapy (dose vs level/antibodies) ---------- */
+
+function latestInfliximab(re, exclude) {
+  const list = data.results
+    .filter((r) => re.test(r.name) && !(exclude && exclude.test(r.name)))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  return list.length ? list[list.length - 1] : null;
+}
+
+function renderInfliximab() {
+  const card = document.getElementById("infliximab-card");
+  const t = data.treatment || {};
+  const level = latestInfliximab(/infliximab/i, /antibod/i);
+  const ab = latestInfliximab(/infliximab antibod|anti[- ]?infliximab|\bati\b/i);
+
+  if (!t.infliximabDoseMg && !level && !ab) { card.hidden = true; return; }
+  card.hidden = false;
+
+  const facts = [];
+  if (t.infliximabDoseMg) facts.push(["Current dose", `${fmtNum(t.infliximabDoseMg)} mg`]);
+  if (t.infliximabRoute) facts.push(["Route", escapeHtml(t.infliximabRoute)]);
+  if (t.infliximabDate) facts.push(["Last given", formatDate(t.infliximabDate)]);
+  if (level) facts.push(["Latest trough", `${fmtNum(level.value)} ${escapeHtml(level.unit)}`]);
+
+  const parts = [];
+  if (level) {
+    const k = statusKind(level);
+    const band = (level.low != null && level.high != null)
+      ? `${fmtNum(level.low)}–${fmtNum(level.high)} ${escapeHtml(level.unit)}` : "the target";
+    const doseTxt = t.infliximabDoseMg ? `${fmtNum(t.infliximabDoseMg)} mg ` : "";
+    if (k === "above") parts.push(`Your most recent trough of <strong>${fmtNum(level.value)} ${escapeHtml(level.unit)}</strong> is <strong>above</strong> the ${band} window — so this ${doseTxt}dose is putting more than enough drug in your blood (supratherapeutic). That's generally safe; very high levels can also make the antibody test read low.`);
+    else if (k === "in") parts.push(`Your most recent trough of <strong>${fmtNum(level.value)} ${escapeHtml(level.unit)}</strong> sits <strong>within</strong> the ${band} target — this ${doseTxt}dose looks well matched.`);
+    else if (k === "below") parts.push(`Your most recent trough of <strong>${fmtNum(level.value)} ${escapeHtml(level.unit)}</strong> is <strong>below</strong> the ${band} target — the dose or interval may need review, especially if symptoms return.`);
+    else parts.push(`Your most recent trough is <strong>${fmtNum(level.value)} ${escapeHtml(level.unit)}</strong>.`);
+    parts.push(`<span class="rt-sub">Measured ${formatDate(level.date)}.</span>`);
+  }
+  if (ab) {
+    parts.push(statusKind(ab) === "above"
+      ? `Antibodies to infliximab are <strong>detectable</strong> — worth discussing, as they can reduce the drug's effect.`
+      : `Antibodies to infliximab are <strong>negative</strong> — your body isn't neutralising the drug, which fits the strong levels.`);
+  }
+  if (level && ab && statusKind(level) !== "below" && statusKind(ab) !== "above") {
+    parts.push(`<em>Bottom line: strong drug exposure with no antibodies is usually a reassuring combination — whether to keep or space out the dose is your GI team's call.</em>`);
+  }
+  if (!level) parts.push(`No infliximab trough level recorded yet — add one in the Post Infliximab Infusion Blood Test report to see how this dose is tracking.`);
+
+  document.getElementById("infliximab-view").innerHTML = `
+    ${facts.length ? `<div class="profile-facts">${facts.map(([k, v]) => `<div class="profile-fact"><span class="profile-fact-label">${k}</span><span class="profile-fact-value">${v}</span></div>`).join("")}</div>` : ""}
+    <div class="ifx-analysis">${parts.map((p) => `<p>${p}</p>`).join("")}</div>
+    <p class="muted">General interpretation of your own data — not medical advice.</p>`;
+}
+
+const ifxForm = document.getElementById("ifx-form");
+document.getElementById("ifx-edit-btn").addEventListener("click", () => {
+  const t = data.treatment || {};
+  document.getElementById("ifx-dose").value = t.infliximabDoseMg ?? "";
+  document.getElementById("ifx-date").value = t.infliximabDate || "";
+  document.getElementById("ifx-route").value = t.infliximabRoute || "";
+  document.getElementById("infliximab-view").hidden = true;
+  document.getElementById("ifx-edit-btn").hidden = true;
+  ifxForm.hidden = false;
+});
+function closeIfxEditor() {
+  ifxForm.hidden = true;
+  document.getElementById("infliximab-view").hidden = false;
+  document.getElementById("ifx-edit-btn").hidden = false;
+}
+document.getElementById("ifx-cancel-btn").addEventListener("click", closeIfxEditor);
+ifxForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const dose = document.getElementById("ifx-dose").value;
+  data.treatment = {
+    infliximabDoseMg: dose === "" ? null : parseFloat(dose),
+    infliximabDate: document.getElementById("ifx-date").value,
+    infliximabRoute: document.getElementById("ifx-route").value.trim(),
+  };
+  saveData();
+  closeIfxEditor();
+  renderInfliximab();
+});
+
+/* ---------- Maintenance to-dos ---------- */
+
+const UNIT_DAYS = { days: 1, weeks: 7, months: 30, years: 365 };
+
+function todoStatus(t) {
+  const intervalDays = Math.max(1, (t.everyValue || 1) * (UNIT_DAYS[t.everyUnit] || 30));
+  const last = new Date(t.lastDone);
+  const next = new Date(last.getTime() + intervalDays * 86400000);
+  const daysLeft = Math.round((next - new Date(todayStr())) / 86400000);
+  const kind = daysLeft < 0 ? "overdue" : daysLeft <= Math.max(7, intervalDays * 0.15) ? "soon" : "ok";
+  return { intervalDays, next, daysLeft, kind };
+}
+
+function todoEvery(t) {
+  const u = t.everyValue === 1 ? t.everyUnit.replace(/s$/, "") : t.everyUnit;
+  return `every ${t.everyValue} ${u}`;
+}
+
+function todoBadge(s) {
+  if (s.kind === "overdue") return `<span class="badge badge-above">Overdue by ${Math.abs(s.daysLeft)} day${Math.abs(s.daysLeft) === 1 ? "" : "s"}</span>`;
+  if (s.kind === "soon") return `<span class="badge badge-flag">Due in ${s.daysLeft} day${s.daysLeft === 1 ? "" : "s"}</span>`;
+  return `<span class="badge badge-ok">Due in ${s.daysLeft} days</span>`;
+}
+
+function sortedTodos() {
+  const rank = { overdue: 0, soon: 1, ok: 2 };
+  return data.todos
+    .map((t) => ({ t, s: todoStatus(t) }))
+    .sort((a, b) => rank[a.s.kind] - rank[b.s.kind] || a.s.daysLeft - b.s.daysLeft);
+}
+
+function renderTodos() {
+  const el = document.getElementById("todo-list");
+  if (data.todos.length === 0) {
+    el.innerHTML = '<p class="empty">No maintenance tasks yet — add one above.</p>';
+    return;
+  }
+  el.innerHTML = sortedTodos().map(({ t, s }) => `
+    <div class="item-row todo-row todo-${s.kind}">
+      <div class="item-main">
+        <div class="item-title">${escapeHtml(t.name)} ${todoBadge(s)}</div>
+        <div class="item-sub">Last done ${formatDate(t.lastDone)} · ${escapeHtml(todoEvery(t))} · next due ${formatDate(s.next.toISOString().slice(0, 10))}</div>
+      </div>
+      <div class="todo-actions">
+        <button type="button" class="btn btn-outline btn-sm" data-todo-done="${t.id}">Mark done today</button>
+        <button type="button" class="btn-delete" data-todo-del="${t.id}">Delete</button>
+      </div>
+    </div>`).join("");
+}
+
+function renderDashTodos() {
+  const el = document.getElementById("dash-todos");
+  if (data.todos.length === 0) {
+    el.innerHTML = '<p class="empty">Add recurring care (dental, facials…) in the To-Dos tab.</p>';
+    return;
+  }
+  const due = sortedTodos().filter(({ s }) => s.kind !== "ok");
+  if (due.length === 0) {
+    el.innerHTML = '<p class="empty">✓ All maintenance up to date.</p>';
+    return;
+  }
+  el.innerHTML = due.map(({ t, s }) => `
+    <div class="item-row link-row todo-${s.kind}" data-goto="todos">
+      <div class="item-main">
+        <div class="item-title">${escapeHtml(t.name)} ${todoBadge(s)}</div>
+        <div class="item-sub">Last done ${formatDate(t.lastDone)}</div>
+      </div>
+    </div>`).join("");
+}
+
+document.getElementById("todo-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  data.todos.push({
+    id: uid(),
+    name: document.getElementById("todo-name").value.trim(),
+    lastDone: document.getElementById("todo-last").value,
+    everyValue: parseInt(document.getElementById("todo-every").value, 10) || 1,
+    everyUnit: document.getElementById("todo-unit").value,
+  });
+  saveData();
+  e.target.reset();
+  renderTodos();
+  renderDashTodos();
+});
+
+document.body.addEventListener("click", async (e) => {
+  const doneId = e.target.dataset.todoDone;
+  const delId = e.target.dataset.todoDel;
+  if (doneId) {
+    const t = data.todos.find((x) => x.id === doneId);
+    if (t) { t.lastDone = todayStr(); saveData(); renderTodos(); renderDashTodos(); }
+  } else if (delId) {
+    if (!(await appConfirm("Delete this maintenance to-do?"))) return;
+    data.todos = data.todos.filter((x) => x.id !== delId);
+    saveData();
+    renderTodos();
+    renderDashTodos();
+  }
+});
+
 function renderDashboard() {
   renderProfile();
+  renderInfliximab();
+  renderDashTodos();
   renderChecklist("dash-supplements");
 
   // Summary stats (clickable KPI row)
@@ -1501,6 +1696,7 @@ function renderAll() {
   renderChecklist("supplement-checklist");
   renderAppointments();
   renderResults();
+  renderTodos();
 }
 
 if (!storageAvailable) {

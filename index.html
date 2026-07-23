@@ -28,6 +28,7 @@
     <button class="tab-btn" data-tab="supplements">Supplements</button>
     <button class="tab-btn" data-tab="appointments">Appointments</button>
     <button class="tab-btn" data-tab="results">Test Results</button>
+    <button class="tab-btn" data-tab="todos">To-Dos</button>
   </nav>
 
   <main>
@@ -39,6 +40,29 @@
       </div>
 
       <div id="dash-stats" class="stat-row"></div>
+
+      <div class="card infliximab-card" id="infliximab-card" hidden>
+        <div class="profile-head">
+          <h2>💉 Infliximab Therapy</h2>
+          <button type="button" id="ifx-edit-btn" class="btn btn-outline">Edit dose</button>
+        </div>
+        <div id="infliximab-view"></div>
+        <form id="ifx-form" class="form-grid" hidden>
+          <label>Dose (mg)
+            <input type="number" id="ifx-dose" step="any" min="0" placeholder="e.g. 800">
+          </label>
+          <label>Date given
+            <input type="date" id="ifx-date">
+          </label>
+          <label class="span-2">Route
+            <input type="text" id="ifx-route" placeholder="e.g. IV infusion">
+          </label>
+          <div class="span-2 profile-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" id="ifx-cancel-btn" class="btn btn-outline">Cancel</button>
+          </div>
+        </form>
+      </div>
 
       <div class="card featured-card">
         <h2>🧪 Recent Test Results — What Changed</h2>
@@ -58,6 +82,10 @@
         <div class="card compact-card">
           <h2>📈 Latest Readings</h2>
           <div id="dash-metrics"></div>
+        </div>
+        <div class="card">
+          <h2>🗓️ Maintenance Due</h2>
+          <div id="dash-todos"></div>
         </div>
       </div>
 
@@ -104,6 +132,29 @@
           <li>
             <strong>Combination biologic strategies.</strong> Trials are testing two biologics together (e.g. vedolizumab with adalimumab or ustekinumab) to see whether combinations control disease better than a single drug.
             <a href="https://clinicaltrials.ucdavis.edu/crohns-disease" target="_blank" rel="noopener">UC Davis Crohn's Trials</a>
+          </li>
+        </ul>
+        <h3 class="news-subhead">Your drug — infliximab: how it compares &amp; what's new</h3>
+        <ul class="news-list">
+          <li>
+            <strong>Infliximab now comes as a self-injection.</strong> Zymfentra (infliximab-dyyb) is the first subcutaneous infliximab — after IV induction, maintenance can be a home injection instead of infusions.
+            <a href="https://www.centerforbiosimilars.com/view/fda-approves-first-subcutaneous-infliximab" target="_blank" rel="noopener">Center for Biosimilars</a>
+          </li>
+          <li>
+            <strong>Evidence behind subcutaneous infliximab.</strong> The Phase 3 LIBERTY-CD and LIBERTY-UC trials showed subcutaneous infliximab beat placebo for maintaining remission after IV induction.
+            <a href="https://www.managedhealthcareexecutive.com/view/fda-approves-first-subcutaneous-infliximab-for-ibd" target="_blank" rel="noopener">Managed Healthcare Executive</a>
+          </li>
+          <li>
+            <strong>Biosimilars keep infliximab affordable.</strong> Versions like Inflectra, Avsola and Renflexis are lower-cost equivalents of the original Remicade, now widely used with comparable results.
+            <a href="https://www.drugs.com/monograph/infliximab.html" target="_blank" rel="noopener">Drugs.com Monograph</a>
+          </li>
+          <li>
+            <strong>Drug-level monitoring gets your dose right.</strong> Proactively checking infliximab trough levels and anti-drug antibodies — exactly what your Post-Infliximab tab tracks — helps keep more patients in remission.
+            <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC12367858/" target="_blank" rel="noopener">Annual TDM study (PMC)</a>
+          </li>
+          <li>
+            <strong>Newer targets challenge anti-TNF like infliximab.</strong> IL-23 inhibitors (risankizumab, guselkumab) and the anti-TL1A drug tulisokibart are emerging as alternatives if an anti-TNF stops working or isn't tolerated.
+            <a href="https://news.gastro.org/issues/2026/january/new-crohns-data-spotlight-promising-therapies/" target="_blank" rel="noopener">GI &amp; Hepatology News</a>
           </li>
         </ul>
       </div>
@@ -303,6 +354,39 @@
       <div class="card">
         <h2>All Results</h2>
         <div id="result-list"></div>
+      </div>
+    </section>
+
+    <!-- ============ TO-DOS / MAINTENANCE ============ -->
+    <section id="tab-todos" class="tab-panel">
+      <div class="card">
+        <h2>Add a Maintenance To-Do</h2>
+        <p class="muted">Track recurring care — dental, facials, eye checks, and so on. The app flags a task when it's due again based on when you last did it.</p>
+        <form id="todo-form" class="form-grid">
+          <label>Task
+            <input type="text" id="todo-name" required placeholder="e.g. Dental check-up">
+          </label>
+          <label>Last done
+            <input type="date" id="todo-last" required>
+          </label>
+          <label>Repeat every
+            <input type="number" id="todo-every" min="1" step="1" required placeholder="e.g. 6">
+          </label>
+          <label>Unit
+            <select id="todo-unit">
+              <option value="days">days</option>
+              <option value="weeks">weeks</option>
+              <option value="months" selected>months</option>
+              <option value="years">years</option>
+            </select>
+          </label>
+          <button type="submit" class="btn btn-primary span-2">Add To-Do</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>My Maintenance</h2>
+        <div id="todo-list"></div>
       </div>
     </section>
   </main>
