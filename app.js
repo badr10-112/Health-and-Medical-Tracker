@@ -23,6 +23,7 @@ const CATEGORIES = [
   { id: "infliximab",   label: "Post Infliximab Infusion Blood Test", short: "Post-Infliximab" },
   { id: "crp",          label: "CRP",                                  short: "CRP" },
   { id: "renal",        label: "Renal Function Panel",                 short: "Renal" },
+  { id: "hepatic",      label: "Hepatic Function Panel",               short: "Hepatic" },
   { id: "testosterone", label: "Testosterone",                         short: "Testosterone" },
   { id: "general",      label: "General Blood Test",                   short: "General" },
 ];
@@ -152,6 +153,18 @@ const TEST_INFO = [
     desc: "A mineral balanced by the kidneys; works with calcium for bone health." },
   { match: /^calcium/i, full: "Calcium",
     desc: "A mineral important for bones, nerves and muscle, partly regulated by the kidneys." },
+  { match: /^alkaline phosphatase|^alp\b/i, full: "Alkaline Phosphatase (ALP)",
+    desc: "A liver and bone enzyme; rises with bile-duct problems or bone turnover." },
+  { match: /alanine aminotransferase|^alt\b|sgpt/i, full: "Alanine Aminotransferase (ALT)",
+    desc: "A liver enzyme released when liver cells are irritated — a core marker of liver health." },
+  { match: /aspartate aminotransferase|^ast\b|sgot/i, full: "Aspartate Aminotransferase (AST)",
+    desc: "An enzyme from liver (and muscle); read together with ALT to gauge liver stress." },
+  { match: /bilirubin.*direct|direct.*bilirubin|conjugated/i, full: "Bilirubin, Direct",
+    desc: "The processed form of bilirubin; a rise points more to bile-flow issues." },
+  { match: /bilirubin.*total|total.*bilirubin|^bilirubin$/i, full: "Bilirubin, Total",
+    desc: "A yellow breakdown product of red cells cleared by the liver; high levels can cause jaundice." },
+  { match: /total protein|protein.*total/i, full: "Total Protein",
+    desc: "All proteins in the blood (albumin + globulins) combined." },
 ];
 
 function testInfo(name) {
