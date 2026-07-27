@@ -935,6 +935,92 @@ input:focus, select:focus, textarea:focus {
   width: 4.5rem;
 }
 
+/* ============ Blood pressure card ============ */
+.bp-card {
+  border-left: 4px solid var(--accent);
+}
+
+.bp-latest {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.35rem;
+}
+
+.bp-latest-value {
+  font-size: 1.7rem;
+  font-weight: 800;
+}
+
+.bp-compare {
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+}
+
+.bp-compare-head {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+}
+
+.bp-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.25rem 0.9rem;
+  align-items: center;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.bp-row:last-child { border-bottom: none; }
+
+.bp-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  margin-right: 0.4rem;
+}
+
+.bp-change {
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============ To-do inline edit ============ */
+.todo-edit {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.todo-edit-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1;
+}
+
+.todo-edit-fields input,
+.todo-edit-fields select {
+  font-size: 0.85rem;
+  padding: 0.4rem 0.5rem;
+}
+
+.todo-edit-fields input[type="text"] { flex: 1; min-width: 8rem; }
+.todo-edit-fields input[type="number"] { width: 4.5rem; }
+
+.edit-label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 /* ============ Toast ============ */
 .toast {
   position: fixed;

@@ -431,6 +431,27 @@ function metricValueText(m) {
   return `${val} ${info.unit}`;
 }
 
+// Classifies a blood-pressure reading (systolic/diastolic) using the common
+// AHA categories. Returns a label, a short level (low/normal/elevated/high),
+// and a badge class. General information, not a diagnosis.
+function bpCategory(sys, dia) {
+  if (sys == null || dia == null || Number.isNaN(sys) || Number.isNaN(dia)) {
+    return { label: "—", level: "none", cls: "" };
+  }
+  if (sys > 180 || dia > 120) return { label: "Hypertensive crisis", level: "high", cls: "badge-above" };
+  if (sys < 90 || dia < 60)   return { label: "Low", level: "low", cls: "badge-soon" };
+  if (sys >= 140 || dia >= 90) return { label: "High (stage 2)", level: "high", cls: "badge-above" };
+  if (sys >= 130 || dia >= 80) return { label: "High (stage 1)", level: "high", cls: "badge-flag" };
+  if (sys >= 120)              return { label: "Elevated", level: "elevated", cls: "badge-flag" };
+  return { label: "Normal", level: "normal", cls: "badge-ok" };
+}
+
+function bpBadge(m) {
+  if (m.type !== "blood_pressure") return "";
+  const c = bpCategory(m.value, m.value2);
+  return ` <span class="badge ${c.cls}">${escapeHtml(c.label)}</span>`;
+}
+
 function renderMetricList() {
   const el = document.getElementById("metric-list");
   const sorted = [...data.metrics].sort((a, b) => b.date.localeCompare(a.date));
@@ -443,12 +464,60 @@ function renderMetricList() {
     return `
       <div class="item-row">
         <div class="item-main">
-          <div class="item-title">${escapeHtml(info.label)}: ${escapeHtml(metricValueText(m))}</div>
+          <div class="item-title">${escapeHtml(info.label)}: ${escapeHtml(metricValueText(m))}${bpBadge(m)}</div>
           <div class="item-sub">${formatDate(m.date)}${m.notes ? " — " + escapeHtml(m.notes) : ""}</div>
         </div>
         <button class="btn-delete" data-delete-metric="${m.id}">Delete</button>
       </div>`;
   }).join("");
+}
+
+// Blood-pressure card: latest reading with its category, plus a compact
+// comparison of the most recent readings showing systolic/diastolic changes.
+function renderBloodPressure() {
+  const card = document.getElementById("bp-card");
+  const el = document.getElementById("bp-view");
+  const bp = data.metrics
+    .filter((m) => m.type === "blood_pressure" && !Number.isNaN(m.value) && !Number.isNaN(m.value2))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (bp.length === 0) { card.hidden = true; return; }
+  card.hidden = false;
+
+  const latest = bp[bp.length - 1];
+  const lc = bpCategory(latest.value, latest.value2);
+  const recent = bp.slice(-4).reverse(); // newest first, up to 4
+
+  const rows = recent.map((m, i) => {
+    const next = recent[i + 1]; // the older reading to compare against
+    let change = '<span class="item-sub">first reading</span>';
+    if (next) {
+      const ds = m.value - next.value, dd = m.value2 - next.value2;
+      const arrow = (d) => d > 0 ? "▲" : d < 0 ? "▼" : "—";
+      const fmt = (d) => (d > 0 ? "+" : d < 0 ? "−" : "") + Math.abs(d);
+      change = `<span class="bp-change">${arrow(ds)} ${fmt(ds)}/${fmt(dd)} vs ${formatDate(next.date)}</span>`;
+    }
+    const c = bpCategory(m.value, m.value2);
+    return `
+      <div class="bp-row">
+        <div>
+          <span class="bp-value">${m.value}/${m.value2}</span>
+          <span class="badge ${c.cls}">${escapeHtml(c.label)}</span>
+        </div>
+        <div class="item-sub">${formatDate(m.date)}</div>
+        <div>${change}</div>
+      </div>`;
+  }).join("");
+
+  el.innerHTML = `
+    <div class="bp-latest">
+      <span class="bp-latest-value">${latest.value}/${latest.value2} <span class="rt-unit">mmHg</span></span>
+      <span class="badge ${lc.cls}">${escapeHtml(lc.label)}</span>
+    </div>
+    <p class="muted">Category from the standard blood-pressure ranges — general information, not a diagnosis.</p>
+    <div class="bp-compare">
+      <div class="bp-compare-head">Recent readings (newest first, with change vs the one before)</div>
+      ${rows}
+    </div>`;
 }
 
 /* ---------------- Chart (simple SVG line chart) ---------------- */
@@ -1433,23 +1502,47 @@ function sortedTodos() {
     .sort((a, b) => rank[a.s.kind] - rank[b.s.kind] || a.s.daysLeft - b.s.daysLeft);
 }
 
+let editingTodoId = null;
+
+function todoEditRow(t) {
+  const units = ["days", "weeks", "months", "years"]
+    .map((u) => `<option value="${u}" ${u === t.everyUnit ? "selected" : ""}>${u}</option>`).join("");
+  return `
+    <div class="item-row todo-edit">
+      <div class="todo-edit-fields">
+        <input type="text" id="edit-todo-name" value="${escapeHtml(t.name)}">
+        <label class="edit-label">Last done <input type="date" id="edit-todo-last" value="${escapeHtml(t.lastDone)}"></label>
+        <label class="edit-label">Every <input type="number" id="edit-todo-every" min="1" step="1" value="${escapeHtml(String(t.everyValue))}"></label>
+        <select id="edit-todo-unit">${units}</select>
+      </div>
+      <div class="todo-actions">
+        <button type="button" class="btn btn-primary btn-sm" data-todo-save="${t.id}">Save</button>
+        <button type="button" class="btn btn-outline btn-sm" data-todo-cancel="1">Cancel</button>
+      </div>
+    </div>`;
+}
+
 function renderTodos() {
   const el = document.getElementById("todo-list");
   if (data.todos.length === 0) {
     el.innerHTML = '<p class="empty">No maintenance tasks yet — add one above.</p>';
     return;
   }
-  el.innerHTML = sortedTodos().map(({ t, s }) => `
-    <div class="item-row todo-row todo-${s.kind}">
-      <div class="item-main">
-        <div class="item-title">${escapeHtml(t.name)} ${todoBadge(s)}</div>
-        <div class="item-sub">Last done ${formatDate(t.lastDone)} · ${escapeHtml(todoEvery(t))} · next due ${formatDate(s.next.toISOString().slice(0, 10))}</div>
-      </div>
-      <div class="todo-actions">
-        <button type="button" class="btn btn-outline btn-sm" data-todo-done="${t.id}">Mark done today</button>
-        <button type="button" class="btn-delete" data-todo-del="${t.id}">Delete</button>
-      </div>
-    </div>`).join("");
+  el.innerHTML = sortedTodos().map(({ t, s }) => {
+    if (t.id === editingTodoId) return todoEditRow(t);
+    return `
+      <div class="item-row todo-row todo-${s.kind}">
+        <div class="item-main">
+          <div class="item-title">${escapeHtml(t.name)} ${todoBadge(s)}</div>
+          <div class="item-sub">Last done ${formatDate(t.lastDone)} · ${escapeHtml(todoEvery(t))} · next due ${formatDate(s.next.toISOString().slice(0, 10))}</div>
+        </div>
+        <div class="todo-actions">
+          <button type="button" class="btn btn-outline btn-sm" data-todo-done="${t.id}">Mark done today</button>
+          <button type="button" class="btn btn-outline btn-sm" data-todo-edit="${t.id}">Edit</button>
+          <button type="button" class="btn-delete" data-todo-del="${t.id}">Delete</button>
+        </div>
+      </div>`;
+  }).join("");
 }
 
 function renderDashTodos() {
@@ -1512,14 +1605,35 @@ document.getElementById("dash-todo-form").addEventListener("submit", (e) => {
 });
 
 document.body.addEventListener("click", async (e) => {
-  const doneId = e.target.dataset.todoDone;
-  const delId = e.target.dataset.todoDel;
-  if (doneId) {
-    const t = data.todos.find((x) => x.id === doneId);
-    if (t) { t.lastDone = todayStr(); saveData(); renderTodos(); renderDashTodos(); }
-  } else if (delId) {
+  const t = e.target;
+  if (t.dataset.todoDone) {
+    const td = data.todos.find((x) => x.id === t.dataset.todoDone);
+    if (td) { td.lastDone = todayStr(); saveData(); renderTodos(); renderDashTodos(); showToast("✓ Marked done today"); }
+  } else if (t.dataset.todoEdit) {
+    editingTodoId = t.dataset.todoEdit;
+    renderTodos();
+  } else if (t.dataset.todoCancel) {
+    editingTodoId = null;
+    renderTodos();
+  } else if (t.dataset.todoSave) {
+    const td = data.todos.find((x) => x.id === t.dataset.todoSave);
+    if (td) {
+      const name = document.getElementById("edit-todo-name").value.trim();
+      const last = document.getElementById("edit-todo-last").value;
+      const every = parseInt(document.getElementById("edit-todo-every").value, 10);
+      if (name) td.name = name;
+      if (last) td.lastDone = last;
+      if (every > 0) td.everyValue = every;
+      td.everyUnit = document.getElementById("edit-todo-unit").value;
+    }
+    editingTodoId = null;
+    saveData();
+    renderTodos();
+    renderDashTodos();
+    showToast("✓ To-do updated");
+  } else if (t.dataset.todoDel) {
     if (!(await appConfirm("Delete this maintenance to-do?"))) return;
-    data.todos = data.todos.filter((x) => x.id !== delId);
+    data.todos = data.todos.filter((x) => x.id !== t.dataset.todoDel);
     saveData();
     renderTodos();
     renderDashTodos();
@@ -1571,7 +1685,7 @@ function renderDashboard() {
       return `
         <div class="item-row link-row" data-goto="metrics">
           <div class="item-main">
-            <div class="item-title">${escapeHtml(info.label)}: ${escapeHtml(metricValueText(m))}</div>
+            <div class="item-title">${escapeHtml(info.label)}: ${escapeHtml(metricValueText(m))}${bpBadge(m)}</div>
             <div class="item-sub">${formatDate(m.date)}</div>
           </div>
         </div>`;
@@ -1754,6 +1868,7 @@ document.getElementById("import-input").addEventListener("change", (e) => {
 function renderAll() {
   renderDashboard();
   renderMetricList();
+  renderBloodPressure();
   renderChart();
   renderSupplementList();
   renderChecklist("supplement-checklist");
